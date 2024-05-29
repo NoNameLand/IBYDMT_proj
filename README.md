@@ -6,3 +6,5 @@ by [Jacopo Teneggi](https://jacopoteneggi.github.io) and [Jeremias Sulam](https:
 
 ---
 
+![A pictorial representation of the problem setup](assets/setup_notitle.jpg)
+
