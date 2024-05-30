@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from scipy.stats import spearmanr
-from test_utils import TestingResults
 
 from concept_lib import get_concepts
 from datasets import get_dataset
 from models.pcbm import PCBM
+from test_utils import TestingResults
 
 kernel_colors = {
     "linear": {"linecolor": "#1f78b4", "barcolor": "#a6cee3"},
@@ -416,11 +416,6 @@ def viz_local(config, workdir, cardinalities=None, tau_max=None, **results_kw):
         ax.axis("off")
         ax.set_title(class_name)
 
-        # plt.savefig(os.path.join(idx_figure_dir, "image.pdf"), bbox_inches="tight")
-        # plt.savefig(os.path.join(idx_figure_dir, "image.png"), bbox_inches="tight")
-        # plt.show()
-        # plt.close()
-
         for k, cardinality in enumerate(cardinalities):
             _rejected, _tau = rejected[:, k], tau[:, k]
 
@@ -431,65 +426,6 @@ def viz_local(config, workdir, cardinalities=None, tau_max=None, **results_kw):
             ax.get_legend().remove()
             ax.set_title(r"$s = %d$" % cardinality)
 
-        # figure_name = os.path.join(
-        #     f"{results.kernel}_{results.kernel_scale}_{results.tau_max}_{results.ckde_scale_method}_{results.ckde_scale}"
-        # )
-        # plt.savefig(
-        #     os.path.join(idx_figure_dir, f"{figure_name}.pdf"), bbox_inches="tight"
-        # )
-        # plt.savefig(
-        #     os.path.join(idx_figure_dir, f"{figure_name}.png"), bbox_inches="tight"
-        # )
-        # plt.show()
-        # plt.close()
-
-        # tau_max = config.testing.tau_max[:1]
-        # results = {
-        #     _tau_max: TestingResults.load(
-        #         config,
-        #         workdir,
-        #         test_type="local_cond",
-        #         concept_type="image",
-        #         tau_max=_tau_max,
-        #         **results_kw,
-        #     )
-        #     for _tau_max in tau_max
-        # }
-
-        # idx_tau_ranks = np.empty((len(tau_max), len(concepts)))
-        # for t, _results in enumerate(results.values()):
-        #     _, _tau = _results.get(class_name, concepts, idx=idx, cardinalities=[4])
-        #     _tau = _tau.squeeze()
-
-        #     sorted_idx = np.argsort(_tau)
-        #     for j, idx in enumerate(sorted_idx):
-        #         idx_tau_ranks[t, idx] = j + 1
-
-        # _, ax = plt.subplots(figsize=(9 / 4, 16 / 4))
-        # palette = sns.color_palette("ch:s=.25,rot=-.25", n_colors=len(concepts))[::-1]
-        # for rank in range(len(concepts)):
-        #     concept_idx = idx_tau_ranks[-1].tolist().index(rank + 1)
-        #     concept_ranks = idx_tau_ranks[:, concept_idx]
-
-        #     y = len(concepts) - concept_ranks + 1
-        #     ax.plot(range(len(tau_max)), y, color=palette[rank])
-        #     ax.annotate(
-        #         concepts[concept_idx],
-        #         (1.03, y[-1]),
-        #         xycoords=("axes fraction", "data"),
-        #         va="center",
-        #     )
-
-        # ax.set_xlabel(r"$\tau^{\max}$")
-        # ax.set_ylabel("Rank")
-        # ax.set_xlim(0, len(tau_max) - 1)
-        # ax.set_xticks(range(len(tau_max)))
-        # ax.set_xticklabels(tau_max)
-        # ax.set_yticks(range(1, len(concepts) + 1))
-        # ax.set_yticklabels(ax.get_yticks()[::-1])
-        # plt.show()
-        # raise NotImplementedError
-
         idx_cardinality_ranks = np.empty((len(cardinalities), len(concepts)))
         for k, cardinality in enumerate(cardinalities):
             _tau = tau[:, k]
@@ -498,7 +434,6 @@ def viz_local(config, workdir, cardinalities=None, tau_max=None, **results_kw):
             for j, idx in enumerate(sorted_idx):
                 idx_cardinality_ranks[k, idx] = j + 1
 
-        # _, ax = plt.subplots(figsize=(9 / 4, 16 / 4))
         ax = axes[-1]
         palette = sns.color_palette("ch:s=.25,rot=-.25", n_colors=len(concepts))[::-1]
         for rank in range(len(concepts)):
@@ -521,12 +456,6 @@ def viz_local(config, workdir, cardinalities=None, tau_max=None, **results_kw):
         ax.set_xticklabels(cardinalities)
         ax.set_yticks(range(1, len(concepts) + 1))
         ax.set_yticklabels(ax.get_yticks()[::-1])
-
-        # figure_name = f"{results.kernel}_{results.kernel_scale}_{results.tau_max}_{results.ckde_scale_method}_{results.ckde_scale}_cardinality"
-        # plt.savefig(os.path.join(figure_dir, f"{figure_name}.pdf"), bbox_inches="tight")
-        # plt.savefig(os.path.join(figure_dir, f"{figure_name}.png"), bbox_inches="tight")
-        # plt.show()
-        # plt.close()
 
         figure_name = os.path.join(
             f"{results.kernel}_{results.kernel_scale}_{results.tau_max}_{results.ckde_scale_method}_{results.ckde_scale}"
