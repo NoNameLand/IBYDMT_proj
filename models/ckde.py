@@ -88,7 +88,5 @@ class cKDE:
 
         if return_images:
             sample_images = torch.stack([self.dataset[_idx][0] for _idx in nn_idx])
-
-        if return_images:
             return sample_z, sample_h, sample_images
         return sample_z, sample_h
