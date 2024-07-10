@@ -5,18 +5,7 @@ import numpy as np
 
 from ibydmt.utils import _get_cls, _register_cls
 
-
-class Wealth(ABC):
-    def __init__(self, config):
-        self.significance_level = config.significance_level
-        self.rejected = False
-
-    @abstractmethod
-    def update(self, payoff):
-        pass
-
-
-_WEALTH: Dict[str, Wealth] = {}
+_WEALTH: Dict = {}
 
 
 def register_wealth(name):
@@ -25,6 +14,16 @@ def register_wealth(name):
 
 def get_wealth(name):
     return _get_cls(name, dict=_WEALTH)
+
+
+class Wealth(object):
+    def __init__(self, config):
+        self.w = 1.0
+        self.wealth = [self.w]
+
+    @abstractmethod
+    def update(self, payoff):
+        pass
 
 
 @register_wealth("mixture")
@@ -46,7 +45,6 @@ class ONS(Wealth):
     def __init__(self, config):
         super().__init__(config)
 
-        self.w = 1.0
         self.v = 0
         self.a = 1
 
@@ -65,8 +63,7 @@ class ONS(Wealth):
 
         if w >= 0 and not self.wealth_flag:
             self.w = w
-            if self.w >= 1 / self.significance_level:
-                self.rejected = True
+            self.wealth.append(self.w)
             self._update_v(payoff)
         else:
             self.wealth_flag = True
