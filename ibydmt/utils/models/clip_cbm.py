@@ -1,3 +1,4 @@
+import logging
 import os
 import pickle
 
@@ -6,6 +7,8 @@ import torch
 
 from ibydmt.utils.concepts import get_concepts
 from ibydmt.utils.constants import device, workdir
+
+logger = logging.getLogger(__name__)
 
 
 class CLIPConceptBottleneck:
@@ -69,6 +72,10 @@ class CLIPConceptBottleneck:
 
     @torch.no_grad()
     def train(self, device=device):
+        logger.info(
+            f"Training CLIP CBM for dataset {self.config.data.dataset.lower()}"
+            f" and concept_name = {self.concept_name}"
+        )
         model, _ = clip.load(self.config.data.clip_backbone, device=device)
 
         concepts_text = clip.tokenize(self.concepts).to(device)

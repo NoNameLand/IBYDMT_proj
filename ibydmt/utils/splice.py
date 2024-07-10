@@ -56,7 +56,7 @@ def _select_concepts(config, weights, classes):
             ]
         )
         if contained or contains:
-            print(f"Skipping concept: {concept}")
+            logger.debug(f"Skipping concept: {concept}")
             continue
 
         concepts.add(" ".join(concept_lemmas))
@@ -90,9 +90,8 @@ def train_dataset_concepts(config, workdir=workdir, device=device):
     weights, l0_norm, cosine = splice.decompose_dataset(
         loader, splicemodel=splicemodel, device=device
     )
-    logging.info(f"Average SpLiCe Decomposition L0 Norm: {l0_norm:.0f}")
-    logging.info(f"Average CLIP, SpLiCe Cosine Similarity: {cosine:.4f}")
-    raise NotImplementedError
+    logger.info(f"Average SpLiCe Decomposition L0 Norm: {l0_norm:.0f}")
+    logger.info(f"Average CLIP, SpLiCe Cosine Similarity: {cosine:.4f}")
     return _select_concepts(config, weights, classes)
 
 

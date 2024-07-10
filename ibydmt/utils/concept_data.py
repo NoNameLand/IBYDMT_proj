@@ -44,6 +44,11 @@ def project_dataset_with_concepts(
     concept_image_idx=None,
     device=device,
 ):
+    logger.info(
+        f"Encoding dataset {config.data.dataset.lower()} (train = {train}) with"
+        f" concept_class_name = {concept_class_name},"
+        f" concept_image_idx = {concept_image_idx}"
+    )
     concept_bottleneck = CLIPConceptBottleneck.load_or_train(
         config,
         workdir=workdir,
@@ -72,7 +77,7 @@ def project_dataset_with_concepts(
 
         embedding.extend(h)
         semantics.extend(z)
-        label.extend(label)
+        label.extend(target)
 
     return embedding, semantics, label
 
@@ -105,7 +110,7 @@ class DatasetWithConcepts(Dataset):
 
         op = "train" if train else "test"
         data_dir = os.path.join(self.root, config.data.dataset.lower())
-        data_path = os.path.join(data_dir, f"{op}_{self.concept_name}")
+        data_path = os.path.join(data_dir, f"{op}_{self.concept_name}.parquet")
         if not os.path.exists(data_path):
             os.makedirs(data_dir, exist_ok=True)
 

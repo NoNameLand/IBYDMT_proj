@@ -2,7 +2,7 @@ import logging
 import os
 
 from ibydmt.utils.config import Config
-from ibydmt.utils.constants import workdir
+from ibydmt.utils.constants import device, workdir
 from ibydmt.utils.splice import (
     train_class_concepts,
     train_dataset_concepts,
@@ -12,15 +12,7 @@ from ibydmt.utils.splice import (
 logger = logging.getLogger(__name__)
 
 
-def _one_or_neither(*args):
-    return sum([1 if arg is not None else 0 for arg in args]) <= 1
-
-
 def get_concept_name(concept_class_name=None, concept_image_idx=None):
-    assert _one_or_neither(concept_class_name, concept_image_idx), ValueError(
-        "Only one of `concept_class_name` or `concept_image_idx` should be provided."
-    )
-
     concept_name = "dataset"
     if concept_class_name is not None:
         concept_name = concept_class_name.lower().replace(" ", "_")
@@ -48,13 +40,15 @@ def get_concepts(
     concept_class_name: str = None,
     concept_image_idx: str = None,
 ):
+    concept_name = get_concept_name(
+        concept_class_name=concept_class_name, concept_image_idx=concept_image_idx
+    )
     concept_path = get_concept_path(
         config,
         workdir=workdir,
         concept_class_name=concept_class_name,
         concept_image_idx=concept_image_idx,
     )
-
     if not os.path.exists(concept_path):
         train_concepts(
             config,
@@ -63,12 +57,18 @@ def get_concepts(
             concept_image_idx=concept_image_idx,
         )
 
+    with open(concept_path, "r") as f:
+        concepts = f.read().splitlines()
+
+    return concept_name, concepts
+
 
 def train_concepts(
     config: Config,
     workdir: str = workdir,
     concept_class_name: str = None,
     concept_image_idx: str = None,
+    device=device,
 ):
     logger.info(
         f"Training concepts for dataset {config.data.dataset.lower()},"
@@ -76,7 +76,9 @@ def train_concepts(
         f" concept_image_idx = {concept_image_idx}"
     )
     if concept_class_name is not None:
-        concepts = train_class_concepts(config, concept_class_name)
+        concepts = train_class_concepts(
+            config, concept_class_name, workdir=workdir, device=device
+        )
     elif concept_image_idx is not None:
         concepts = train_image_concepts(
             config, concept_image_idx, workdir=workdir, device=device
