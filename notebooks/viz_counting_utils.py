@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from counting_lib import CLASS_NAME, CONCEPTS, DIGIT_NAMES, CountingDataset
 
+from counting_lib import CLASS_NAME, CONCEPTS, DIGIT_NAMES, CountingDataset
 from notebooks.viz_results_utils import _viz_sorted_concepts, kernel_colors
 
 

@@ -108,12 +108,14 @@ class PCBM:
         class_accuracy = np.array(class_accuracy_hist)
 
         print(
-            f"PCBM training accuracy: {accuracy.mean():.2%} (std = {accuracy.std():.2%})"
+            f"PCBM training accuracy: {accuracy.mean():.2%} (std ="
+            f" {accuracy.std():.2%})"
         )
         for class_idx, class_name in enumerate(dataset.classes):
             _class_accuracy = class_accuracy[:, class_idx]
             print(
-                f"\t{class_name}: {_class_accuracy.mean():.2%} (std = {_class_accuracy.std():.2%})"
+                f"\t{class_name}: {_class_accuracy.mean():.2%} (std ="
+                f" {_class_accuracy.std():.2%})"
             )
 
     def eval(self):
@@ -137,10 +139,12 @@ class PCBM:
         class_accuracy = np.array(class_accuracy_hist)
 
         print(
-            f"PCBM validation accuracy: {accuracy.mean():.2%} (std = {accuracy.std():.2%})"
+            f"PCBM validation accuracy: {accuracy.mean():.2%} (std ="
+            f" {accuracy.std():.2%})"
         )
         for class_idx, class_name in enumerate(dataset.classes):
             _class_accuracy = class_accuracy[:, class_idx]
             print(
-                f"\t{class_name}: {_class_accuracy.mean():.2%} (std = {_class_accuracy.std():.2%})"
+                f"\t{class_name}: {_class_accuracy.mean():.2%} (std ="
+                f" {_class_accuracy.std():.2%})"
             )

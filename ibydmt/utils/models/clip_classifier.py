@@ -7,8 +7,8 @@ import pandas as pd
 import torch
 from scipy.special import softmax
 
-from concept_datasets import get_concept_dataset
-from datasets import get_dataset
+from ibydmt.utils.concept_data import get_dataset, get_dataset_with_concepts
+from ibydmt.utils.constants import device, workdir
 
 
 class CLIPClassifier:
@@ -19,13 +19,13 @@ class CLIPClassifier:
         self.logit_scale = None
         self.classifier = None
 
-    def state_path(self, workdir):
+    def state_path(self, workdir=workdir):
         state_dir = os.path.join(workdir, "weights", self.config.name.lower())
         os.makedirs(state_dir, exist_ok=True)
         return os.path.join(state_dir, f"clip_classifier.pkl")
 
     @staticmethod
-    def load_or_train(config, workdir):
+    def load_or_train(config, workdir=workdir, device=device):
         model = CLIPClassifier(config)
         state_path = model.state_path(workdir)
 
@@ -38,37 +38,30 @@ class CLIPClassifier:
             model.logit_scale = logit_scale
             model.classifier = classifier
         else:
-            model.train()
-            model.save(workdir)
+            model.train(device=device)
+            model.save(workdir=workdir)
         return model
 
     @staticmethod
-    def get_predictions(config, workdir):
+    def get_predictions(config, workdir=workdir):
         prediction_path = os.path.join(
             workdir, "results", config.name.lower(), "predictions.csv"
         )
-
         if not os.path.exists(prediction_path):
             model = CLIPClassifier.load_or_train(config, workdir)
             model.predict(workdir)
 
         return pd.read_csv(prediction_path)
 
-    def save(self, workdir):
-        with open(self.state_path(workdir), "wb") as f:
+    def save(self, workdir=workdir):
+        with open(self.state_path(workdir=workdir), "wb") as f:
             pickle.dump((self.classes, self.logit_scale, self.classifier), f)
 
     def __call__(self, h):
         return h @ self.classifier.T
 
     @torch.no_grad()
-    def train(
-        self, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    ):
-        print(
-            f"Training CLIP classifier for dataset {self.config.data.dataset.lower()}"
-        )
-
+    def train(self, device=device):
         model, _ = clip.load(self.config.data.clip_backbone, device=device)
         logit_scale = model.logit_scale.cpu().numpy()
 
@@ -85,13 +78,8 @@ class CLIPClassifier:
         self.logit_scale = logit_scale
         self.classifier = classifier
 
-    def predict(self, workdir):
-        print(
-            f"Predicting on {self.config.data.dataset.lower()} dataset with CLIP"
-            " classifier"
-        )
-
-        dataset = get_concept_dataset(self.config, train=False)
+    def predict(self, workdir=workdir):
+        dataset = get_dataset_with_concepts(self.config, workdir=workdir, train=False)
         assert dataset.classes == self.classes
 
         H = dataset.H
@@ -99,9 +87,7 @@ class CLIPClassifier:
         output = self(H)
         probs = softmax(np.exp(self.logit_scale) * output, axis=-1)
         prediction = np.argmax(probs, axis=-1)
-
         accuracy = np.mean((prediction == dataset.Y).astype(float))
-        print(f"CLIP classifier accuracy: {accuracy:.2%}")
 
         results_dir = os.path.join(workdir, "results", self.config.name.lower())
         os.makedirs(results_dir, exist_ok=True)

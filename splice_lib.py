@@ -119,7 +119,8 @@ def train_class_concepts(
     device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
 ):
     print(
-        f"Training concepts for dataset {config.data.dataset} and class {concept_class_name}"
+        f"Training concepts for dataset {config.data.dataset} and class"
+        f" {concept_class_name}"
     )
 
     dataset, loader, splicemodel = _preamble(config, device=device)

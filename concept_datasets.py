@@ -88,7 +88,8 @@ class DatasetWithConcepts(Dataset):
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
     ):
         print(
-            f"Encoding dataset {config.data.dataset} (train = {self.train}) with concept bottleneck model (concept_name = {self.concept_name})"
+            f"Encoding dataset {config.data.dataset} (train = {self.train}) with"
+            f" concept bottleneck model (concept_name = {self.concept_name})"
         )
         concept_bottleneck = CLIPConceptBottleneck.load_or_train(
             config,

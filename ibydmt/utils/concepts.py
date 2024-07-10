@@ -1,11 +1,15 @@
+import logging
 import os
 
+from ibydmt.utils.config import Config
 from ibydmt.utils.constants import workdir
 from ibydmt.utils.splice import (
     train_class_concepts,
     train_dataset_concepts,
     train_image_concepts,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _one_or_neither(*args):
@@ -26,7 +30,10 @@ def get_concept_name(concept_class_name=None, concept_image_idx=None):
 
 
 def get_concept_path(
-    config, workdir=workdir, concept_class_name=None, concept_image_idx=None
+    config: Config,
+    workdir: str = workdir,
+    concept_class_name: str = None,
+    concept_image_idx: str = None,
 ):
     concept_name = get_concept_name(
         concept_class_name=concept_class_name, concept_image_idx=concept_image_idx
@@ -36,7 +43,10 @@ def get_concept_path(
 
 
 def get_concepts(
-    config, workdir=workdir, concept_class_name=None, concept_image_idx=None
+    config: Config,
+    workdir: str = workdir,
+    concept_class_name: str = None,
+    concept_image_idx: str = None,
 ):
     concept_path = get_concept_path(
         config,
@@ -55,14 +65,24 @@ def get_concepts(
 
 
 def train_concepts(
-    config, workdir=workdir, concept_class_name=None, concept_image_idx=None
+    config: Config,
+    workdir: str = workdir,
+    concept_class_name: str = None,
+    concept_image_idx: str = None,
 ):
+    logger.info(
+        f"Training concepts for dataset {config.data.dataset.lower()},"
+        f" concept_class_name = {concept_class_name},"
+        f" concept_image_idx = {concept_image_idx}"
+    )
     if concept_class_name is not None:
         concepts = train_class_concepts(config, concept_class_name)
     elif concept_image_idx is not None:
-        concepts = train_image_concepts(config, concept_image_idx)
+        concepts = train_image_concepts(
+            config, concept_image_idx, workdir=workdir, device=device
+        )
     else:
-        concepts = train_dataset_concepts(config)
+        concepts = train_dataset_concepts(config, workdir=workdir, device=device)
 
     concept_path = get_concept_path(
         config,

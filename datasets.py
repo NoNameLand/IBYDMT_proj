@@ -7,17 +7,19 @@ from torchvision.datasets import VisionDataset
 from torchvision.datasets.folder import find_classes, make_dataset
 from torchvision.transforms.functional import to_tensor
 
+from ibydmt.utils.data import register_dataset
+
 workdir = os.path.dirname(os.path.realpath(__file__))
 data_dir = os.path.join(workdir, "data")
 
 
-def get_dataset(config, train=True, transform=None):
-    if config.data.dataset.lower() == "imagenette":
-        root = os.path.join(data_dir, "imagenette2")
-        dataset = Imagenette(root=root, train=train, transform=transform)
-    else:
-        raise NotImplementedError(f"Unknown dataset: {dataset}.")
-    return dataset
+# def get_dataset(config, train=True, transform=None):
+#     if config.data.dataset.lower() == "imagenette":
+#         root = os.path.join(data_dir, "imagenette2")
+#         dataset = Imagenette(root=root, train=train, transform=transform)
+#     else:
+#         raise NotImplementedError(f"Unknown dataset: {dataset}.")
+#     return dataset
 
 
 class CountingDataset(Dataset):
@@ -40,8 +42,9 @@ class CountingDataset(Dataset):
         return to_tensor(image), self.digits[idx]
 
 
+@register_dataset(name="imagenette")
 class Imagenette(VisionDataset):
-    _WNID_TO_CLASS = {
+    WNID_TO_CLASS = {
         "n01440764": ("tench", "Tinca tinca"),
         "n02102040": ("English springer", "English springer spaniel"),
         "n02979186": ("cassette player",),
@@ -58,21 +61,21 @@ class Imagenette(VisionDataset):
         super().__init__(root, transform=transform)
         self.train = train
 
-        self._split = "train" if train else "val"
-        self._image_root = os.path.join(root, self._split)
+        self.split = "train" if train else "val"
+        self.image_root = os.path.join(root, "imagenette2", self.split)
 
-        self.wnids, self.wnid_to_idx = find_classes(self._image_root)
-        self.classes = [self._WNID_TO_CLASS[wnid][0] for wnid in self.wnids]
+        self.wnids, self.wnid_to_idx = find_classes(self.image_root)
+        self.classes = [self.WNID_TO_CLASS[wnid][0] for wnid in self.wnids]
 
-        self._samples = make_dataset(
-            self._image_root, self.wnid_to_idx, extensions=".jpeg"
+        self.samples = make_dataset(
+            self.image_root, self.wnid_to_idx, extensions=".jpeg"
         )
 
     def __len__(self):
-        return len(self._samples)
+        return len(self.samples)
 
     def __getitem__(self, idx):
-        path, label = self._samples[idx]
+        path, label = self.samples[idx]
         image = Image.open(path).convert("RGB")
 
         if self.transform is not None:

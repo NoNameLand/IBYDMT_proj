@@ -200,7 +200,8 @@ class TestingResults:
 
 @contextlib.contextmanager
 def tqdm_joblib(tqdm_object):
-    """From: https://stackoverflow.com/questions/37804279/how-can-we-use-tqdm-in-a-parallel-execution-with-joblib"""
+    """From: https://stackoverflow.com/questions/37804279/how-can-we-use-tqdm-in-a-parallel-execution-with-joblib
+    """
 
     class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack):
         def __call__(self, *args, **kwargs):

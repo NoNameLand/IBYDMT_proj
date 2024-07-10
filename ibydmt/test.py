@@ -1,14 +1,23 @@
 import functools
 from abc import ABC, abstractmethod
 from collections import deque
-from typing import Callable, Tuple, Union
+from copy import deepcopy
+from itertools import product
+from typing import Callable, List, Tuple, Union
 
 import numpy as np
 import torch
 from jaxtyping import Float
+from joblib import Parallel, delayed
 
-from ibydmt.payoff import HSIC, cMMD, xMMD
-from ibydmt.wealth import get_wealth
+from ibydmt.utils.concept_data import get_dataset_with_concepts
+from ibydmt.utils.config import Config, get_config
+from ibydmt.utils.constants import workdir
+
+# from ibydmt.payoff import HSIC, cMMD, xMMD
+from ibydmt.utils.data import get_dataset
+from ibydmt.utils.models.clip_classifier import CLIPClassifier
+from ibydmt.wealth import Wealth, get_wealth
 
 Array = Union[np.ndarray, torch.Tensor]
 
@@ -159,20 +168,6 @@ Array = Union[np.ndarray, torch.Tensor]
 #         return (False, t)
 
 
-from enum import Enum
-from typing import List
-
-from joblib import Parallel, delayed
-
-from ibydmt.wealth import Wealth
-
-
-class ConceptType(Enum):
-    DATASET = "dataset"
-    CLASS = "class"
-    IMAGE = "image"
-
-
 class SequentialTester(object):
     def __init__(self, config, *args):
         self.wealth: Wealth = get_wealth(config.wealth)(config)
@@ -212,9 +207,63 @@ class SKIT(SequentialTester):
         super().__init__(config)
 
 
+def sweep(config: Config):
+    to_iterable = lambda v: v if isinstance(v, list) else [v]
+
+    sweep_keys, sweep_values = zip(*config.items())
+    sweep = list(product(*map(to_iterable, sweep_values)))
+
+    for _sweep in sweep:
+        kwargs = {k: v for k, v in zip(sweep_keys, _sweep)}
+        yield Config(**kwargs)
+
+
+def run_tests(config: Config, testers: List[SequentialTester]):
+    significance_level = config.testing.significance_level
+    tau_max = config.testing.tau_max
+    fdr_control = config.testing.fdr_control
+    k = len(testers)
+
+
+def test_global(config: Config, concept_type: str, workdir: str = workdir):
+    dataset = get_dataset(config, workdir=workdir)
+    classes = dataset.classes
+
+    for class_name in classes:
+        concept_class_name = None
+        if concept_type == "class":
+            concept_class_name = class_name
+
+        concept_dataset = get_dataset_with_concepts(
+            config, workdir=workdir, train=False, concept_class_name=concept_class_name
+        )
+        concepts = concept_dataset.concepts
+        print(class_name, concepts)
+        raise NotImplementedError
+
+
+def test_global_cond(config: Config, concept_type: str, workdir: str = workdir):
+    pass
+
+
+def test_local_cond(config: Config, concept_type: str, workdir: str = workdir):
+    pass
+
+
 class ConceptTester(object):
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, config_name: str):
+        self.config = get_config(config_name)
+
+    def test(self, test_type: str, concept_type: str, workdir: str = workdir):
+        if test_type == "global":
+            test_fn = test_global
+        if test_type == "global_cond":
+            test_fn = test_global_cond
+        if test_type == "local_cond":
+            test_fn = test_local_cond
+
+        for config in sweep(self.config):
+            test_fn(config, concept_type, workdir)
 
     def _test(self, testers: List[SequentialTester]):
         testing_config = self.config.testing
@@ -243,12 +292,4 @@ class ConceptTester(object):
         for n in range(1, k + 1):
             t = k / (significance_level * n)
             tester_idx, tau = np.nonzero(wealths >= t)
-
-    def test_global(concept_type: ConceptType):
-        pass
-
-    def test_global_conditional(concept_type: ConceptType):
-        pass
-
-    def test_local_conditional(concept_type: ConceptType):
-        pass
+            raise NotImplementedError

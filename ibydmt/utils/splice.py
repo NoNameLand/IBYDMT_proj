@@ -1,3 +1,5 @@
+import logging
+
 import clip
 import numpy as np
 import splice
@@ -8,6 +10,7 @@ from torch.utils.data import DataLoader
 from ibydmt.utils.constants import device, workdir
 from ibydmt.utils.data import get_dataset
 
+logger = logging.getLogger(__name__)
 rng = np.random.default_rng()
 
 # Uncomment these lines if you haven't downloaded the WordNet data
@@ -87,6 +90,9 @@ def train_dataset_concepts(config, workdir=workdir, device=device):
     weights, l0_norm, cosine = splice.decompose_dataset(
         loader, splicemodel=splicemodel, device=device
     )
+    logging.info(f"Average SpLiCe Decomposition L0 Norm: {l0_norm:.0f}")
+    logging.info(f"Average CLIP, SpLiCe Cosine Similarity: {cosine:.4f}")
+    raise NotImplementedError
     return _select_concepts(config, weights, classes)
 
 

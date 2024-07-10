@@ -430,7 +430,8 @@ def _test_global(config, workdir, use_model, **testing_kw):
         setattr(testing_config, key, value)
 
     print(
-        f"Testing for global semantic independence with kernel = {testing_config.kernel}, tau_max = {testing_config.tau_max}"
+        "Testing for global semantic independence with kernel ="
+        f" {testing_config.kernel}, tau_max = {testing_config.tau_max}"
     )
 
     test_type = "global_model" if use_model else "global"
@@ -480,7 +481,8 @@ def _test_global_cond(config, workdir, use_model, **testing_kw):
         setattr(testing_config, key, value)
 
     print(
-        f"Testing for global conditional semantic independence with kernel = {testing_config.kernel}, tau_max = {testing_config.tau_max}"
+        "Testing for global conditional semantic independence with kernel ="
+        f" {testing_config.kernel}, tau_max = {testing_config.tau_max}"
     )
 
     test_type = "global_cond_model" if use_model else "global_cond"
@@ -531,7 +533,8 @@ def _test_local_cond(config, workdir, use_model, **testing_kw):
         setattr(testing_config, key, value)
 
     print(
-        f"Testing for local conditional semantic independence with kernel = {testing_config.kernel}, tau_max = {testing_config.tau_max}"
+        "Testing for local conditional semantic independence with kernel ="
+        f" {testing_config.kernel}, tau_max = {testing_config.tau_max}"
     )
 
     test_type = "local_cond_model" if use_model else "local_cond"

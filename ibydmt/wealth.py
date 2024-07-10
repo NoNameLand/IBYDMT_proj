@@ -1,19 +1,21 @@
-from abc import ABC, abstractmethod
-from typing import Dict
+from abc import abstractmethod
 
 import numpy as np
 
-from ibydmt.utils import _get_cls, _register_cls
-
-_WEALTH: Dict = {}
+wealths = {}
 
 
 def register_wealth(name):
-    return _register_cls(name, dict=_WEALTH)
+    def register(cls):
+        if name in wealths:
+            raise ValueError(f"Wealth {name} is already registered")
+        wealths[name] = cls
+
+    return register
 
 
 def get_wealth(name):
-    return _get_cls(name, dict=_WEALTH)
+    return wealths[name]
 
 
 class Wealth(object):

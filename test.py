@@ -1,11 +1,13 @@
 import argparse
+import os
 
-from configs.utils import get_config
-from test_lib import test
+import configs
+import datasets
+from ibydmt import ConceptTester
 
 
 def test_type(value):
-    if value not in ["all", "global", "global_cond", "local_cond"]:
+    if value not in ["global", "global_cond", "local_cond"]:
         raise argparse.ArgumentTypeError(f"Invalid test type: {value}")
     return value
 
@@ -16,35 +18,49 @@ def concept_type(value):
     return value
 
 
+def setup_logging(level):
+    import logging
+
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    logging.root.setLevel(level)
+    loggers = [
+        logging.getLogger(name)
+        for name in logging.root.manager.loggerDict
+        if "ibydmt" in name
+    ]
+    for logger in loggers:
+        logger.setLevel(level)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logging.root.addHandler(stream_handler)
+
+
 def config():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_name", type=str)
-    parser.add_argument("--workdir", type=str, default="./")
-    parser.add_argument("--test_type", type=test_type, default="all")
+    parser.add_argument("--test_type", type=test_type, default="global")
     parser.add_argument("--concept_type", type=concept_type, default="dataset")
-    parser.add_argument("--kernel_scale", type=float, default=None)
-    parser.add_argument("--ckde_scale", type=float, default=None)
-    parser.add_argument("--tau_max", type=int, default=None)
+    parser.add_argument(
+        "--workdir", type=str, default=os.path.dirname(os.path.realpath(__file__))
+    )
+    parser.add_argument("--log_level", type=str, default="INFO", help="Logging")
     return parser.parse_args()
 
 
 def main(args):
     config_name = args.config_name
-    workdir = args.workdir
     test_type = args.test_type
     concept_type = args.concept_type
-    kernel_scale = args.kernel_scale
-    ckde_scale = args.ckde_scale
-    tau_max = args.tau_max
+    workdir = args.workdir
+    log_level = args.log_level
 
-    config = get_config(config_name)
-    if kernel_scale is not None:
-        config.testing.kernel_scale = [kernel_scale]
-    if ckde_scale is not None:
-        config.ckde.scale = [ckde_scale]
-    if tau_max is not None:
-        config.testing.tau_max = [tau_max]
-    test(config, test_type, concept_type, workdir)
+    setup_logging(log_level)
+
+    tester = ConceptTester(config_name)
+    tester.test(test_type, concept_type, workdir=workdir)
 
 
 if __name__ == "__main__":
