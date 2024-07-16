@@ -1,16 +1,17 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from functools import reduce
 
 import numpy as np
 from sklearn.metrics import pairwise_distances
 from sklearn.metrics.pairwise import linear_kernel, rbf_kernel
 
-from ibydmt.bet import get_bet
+from ibydmt.testing.bet import Bet, get_bet
+from ibydmt.utils.config import Config
 
 
-class Payoff(ABC):
-    def __init__(self, config):
-        self.bet = get_bet(config.bet)(config)
+class Payoff:
+    def __init__(self, config: Config):
+        self.bet: Bet = get_bet(config.testing.bet)()
 
     @abstractmethod
     def compute(self, *args, **kwargs):
@@ -65,19 +66,19 @@ class KernelPayoff(Payoff):
     def __init__(self, config):
         super().__init__(config)
 
-        self.kernel = config.kernel
-        self.scale_method = config.get("kernel_scale_method", "quantile")
-        self.scale = config.get("kernel_scale", 0.5)
+        self.kernel = config.testing.kernel
+        self.scale_method = config.testing.kernel_scale_method
+        self.scale = config.testing.kernel_scale
 
     @abstractmethod
-    def witness_function(self, d, prev_d):
+    def witness_function(self, d, prev):
         pass
 
-    def compute(self, d, null_d, prev_d):
+    def compute(self, d, null_d, prev):
         g = reduce(
             lambda acc, u: acc
-            + self.witness_function(u[0], prev_d)
-            - self.witness_function(u[1], prev_d),
+            + self.witness_function(u[0], prev)
+            - self.witness_function(u[1], prev),
             zip(d, null_d),
             0,
         )
@@ -96,9 +97,9 @@ class HSIC(KernelPayoff):
         self.kernel_y = Kernel(kernel, scale_method, scale)
         self.kernel_z = Kernel(kernel, scale_method, scale)
 
-    def witness_function(self, d, prev_d):
+    def witness_function(self, d, prev):
         y, z = d
-        prev_y, prev_z = prev_d[:, 0], prev_d[:, 1]
+        prev_y, prev_z = prev[:, 0], prev[:, 1]
 
         y_mat = self.kernel_y(y.reshape(-1, 1), prev_y.reshape(-1, 1))
         z_mat = self.kernel_z(z.reshape(-1, 1), prev_z.reshape(-1, 1))
@@ -120,14 +121,14 @@ class cMMD(KernelPayoff):
         self.kernel_zj = Kernel(kernel, scale_method, scale)
         self.kernel_cond_z = Kernel(kernel, scale_method, scale)
 
-    def witness_function(self, u, prev_d):
-        y, zj, cond_z = u[0], u[1], u[2:]
+    def witness_function(self, d, prev):
+        y, zj, cond_z = d[0], d[1], d[2:]
 
         prev_y, prev_zj, prev_null_zj, prev_cond_z = (
-            prev_d[:, 0],
-            prev_d[:, 1],
-            prev_d[:, 2],
-            prev_d[:, 3:],
+            prev[:, 0],
+            prev[:, 1],
+            prev[:, 2],
+            prev[:, 3:],
         )
 
         y_mat = self.kernel_y(y.reshape(-1, 1), prev_y.reshape(-1, 1))
@@ -136,7 +137,6 @@ class cMMD(KernelPayoff):
             cond_z.reshape(-1, prev_cond_z.shape[1]),
             prev_cond_z.reshape(-1, prev_cond_z.shape[1]),
         )
-
         null_zj_mat = self.kernel_zj(zj.reshape(-1, 1), prev_null_zj.reshape(-1, 1))
 
         mu = np.mean(y_mat * zj_mat * cond_z_mat)

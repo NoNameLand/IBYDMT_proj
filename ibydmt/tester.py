@@ -1,25 +1,22 @@
-import functools
-from abc import ABC, abstractmethod
-from collections import deque
-from copy import deepcopy
+import logging
 from itertools import product
-from typing import Callable, List, Tuple, Union
+from typing import List
 
 import numpy as np
-import torch
-from jaxtyping import Float
 from joblib import Parallel, delayed
+from tqdm import tqdm
 
+from ibydmt.testing.procedure import SKIT, SequentialTester
 from ibydmt.utils.concept_data import get_dataset_with_concepts
-from ibydmt.utils.config import Config, get_config
-from ibydmt.utils.constants import workdir
-
-# from ibydmt.payoff import HSIC, cMMD, xMMD
+from ibydmt.utils.config import ConceptType, Config
+from ibydmt.utils.config import IBYDMTConstants as c
+from ibydmt.utils.config import TestType, get_config
 from ibydmt.utils.data import get_dataset
 from ibydmt.utils.models.clip_classifier import CLIPClassifier
-from ibydmt.wealth import Wealth, get_wealth
+from ibydmt.utils.result import TestingResults
 
-Array = Union[np.ndarray, torch.Tensor]
+logger = logging.getLogger(__name__)
+rng = np.random.default_rng()
 
 
 # class Tester(ABC):
@@ -168,54 +165,43 @@ Array = Union[np.ndarray, torch.Tensor]
 #         return (False, t)
 
 
-class SequentialTester(object):
-    def __init__(self, config, *args):
-        self.wealth: Wealth = get_wealth(config.wealth)(config)
-        self.significance_level = config.significance_level
-        self.tau_max = config.tau_max
+def sweep(
+    config: Config,
+    sweep_keys=[
+        "ckde.scale",
+        "testing.fdr_control",
+        "testing.kernel",
+        "testing.kernel_scale",
+        "testing.tau_max",
+    ],
+):
+    def _get(dict, key):
+        keys = key.split(".")
+        if len(keys) == 1:
+            return dict[keys[0]]
+        else:
+            return _get(dict[keys[0]], ".".join(keys[1:]))
 
-        self.initialize(*args)
+    def _set(dict, key, value):
+        keys = key.split(".")
+        if len(keys) == 1:
+            dict[keys[0]] = value
+        else:
+            _set(dict[keys[0]], ".".join(keys[1:]), value)
 
-    @abstractmethod
-    def initialize(self):
-        pass
-
-    @abstractmethod
-    def step(self):
-        pass
-
-    def test(self, stop_on="rejection", return_wealth=True):
-        rejected = False
-        tau = self.tau_max - 1
-        for t in range(1, self.tau_max):
-            payoff = self.step()
-
-            self.wealth.update(payoff)
-            if self.wealth.w >= 1 / self.significance_level:
-                rejected = True
-                tau = min(tau, t)
-                if stop_on == "rejection":
-                    break
-        output = (rejected, tau)
-        if return_wealth:
-            output += (self.wealth,)
-        return output
-
-
-class SKIT(SequentialTester):
-    def __init__(self, config):
-        super().__init__(config)
-
-
-def sweep(config: Config):
     to_iterable = lambda v: v if isinstance(v, list) else [v]
 
-    sweep_keys, sweep_values = zip(*config.items())
+    config_dict = config.to_dict()
+    sweep_values = [_get(config_dict, key) for key in sweep_keys]
     sweep = list(product(*map(to_iterable, sweep_values)))
 
+    configs = []
     for _sweep in sweep:
-        kwargs = {k: v for k, v in zip(sweep_keys, _sweep)}
-        yield Config(**kwargs)
+        _config_dict = config_dict.copy()
+        for key, value in zip(sweep_keys, _sweep):
+            _set(_config_dict, key, value)
+        configs.append(Config(_config_dict).freeze())
+    return configs
 
 
 def run_tests(config: Config, testers: List[SequentialTester]):
@@ -224,59 +210,18 @@ def run_tests(config: Config, testers: List[SequentialTester]):
     fdr_control = config.testing.fdr_control
     k = len(testers)
 
-
-def test_global(config: Config, concept_type: str, workdir: str = workdir):
-    dataset = get_dataset(config, workdir=workdir)
-    classes = dataset.classes
-
-    for class_name in classes:
-        concept_class_name = None
-        if concept_type == "class":
-            concept_class_name = class_name
-
-        concept_dataset = get_dataset_with_concepts(
-            config, workdir=workdir, train=False, concept_class_name=concept_class_name
-        )
-        concepts = concept_dataset.concepts
-        print(class_name, concepts)
-        raise NotImplementedError
-
-
-def test_global_cond(config: Config, concept_type: str, workdir: str = workdir):
-    pass
-
-
-def test_local_cond(config: Config, concept_type: str, workdir: str = workdir):
-    pass
-
-
-class ConceptTester(object):
-    def __init__(self, config_name: str):
-        self.config = get_config(config_name)
-
-    def test(self, test_type: str, concept_type: str, workdir: str = workdir):
-        if test_type == "global":
-            test_fn = test_global
-        if test_type == "global_cond":
-            test_fn = test_global_cond
-        if test_type == "local_cond":
-            test_fn = test_local_cond
-
-        for config in sweep(self.config):
-            test_fn(config, concept_type, workdir)
-
-    def _test(self, testers: List[SequentialTester]):
-        testing_config = self.config.testing
-        significance_level = testing_config.significance_level
-        tau_max = testing_config.tau_max
-
-        k = len(testers)
+    if fdr_control:
         _significance_level = significance_level / k
         for tester in testers:
             tester.significance_level = _significance_level
 
-        wealths = Parallel(n_jobs=-1)(delayed(tester.test)()[-1] for tester in testers)
-        wealths = np.array(
+    results = Parallel(n_jobs=-1)(
+        delayed(tester.test)(return_wealth=True) for tester in testers
+    )
+    rejected, tau, wealths = zip(*results)
+
+    if fdr_control:
+        _wealths = np.stack(
             [
                 np.pad(
                     wealth,
@@ -287,9 +232,92 @@ class ConceptTester(object):
                 for wealth in wealths
             ]
         )
+        rejected = np.zeros(_wealths.shape[0], dtype=bool)
+        tau = (config.testing.tau_max - 1) * np.ones(_wealths.shape[0], dtype=int)
 
-        s = []
         for n in range(1, k + 1):
             t = k / (significance_level * n)
-            tester_idx, tau = np.nonzero(wealths >= t)
-            raise NotImplementedError
+            tester_idx, tester_tau = np.nonzero(_wealths >= t)
+            if len(tester_tau) == 0:
+                break
+
+            first_idx = np.argmin(tester_tau)
+            rejected_tau = tester_tau[first_idx]
+            rejected_idx = tester_idx[first_idx]
+
+            rejected[rejected_idx] = True
+            tau[rejected_idx] = rejected_tau
+
+            _wealths[rejected_idx] = -np.inf
+
+        rejected = tuple(rejected)
+        tau = tuple(tau)
+
+    return rejected, tau
+
+
+def test_global(config: Config, concept_type: str, workdir: str = c.WORKDIR):
+    logger.info(
+        "Testing for global semantic independence of dataset"
+        f" {config.data.dataset.lower()} with concept_type = {concept_type}, kernel ="
+        f" {config.testing.kernel}, kernel_scale = {config.testing.kernel_scale},"
+        f" tau_max = {config.testing.tau_max}, fdr_control ="
+        f" {config.testing.fdr_control}"
+    )
+
+    dataset = get_dataset(config, workdir=workdir)
+    predictions = CLIPClassifier.get_predictions(config, workdir=workdir)
+
+    results = TestingResults(config, "global", concept_type)
+
+    classes = dataset.classes
+    for class_name in classes:
+        logger.info(f"Testing class {class_name}")
+
+        concept_class_name = None
+        if concept_type == ConceptType.CLASS.value:
+            concept_class_name = class_name
+
+        concept_dataset = get_dataset_with_concepts(
+            config, workdir=workdir, train=False, concept_class_name=concept_class_name
+        )
+        concepts = concept_dataset.concepts
+
+        for _ in tqdm(range(config.testing.r)):
+            testers = []
+            for concept_idx, _ in enumerate(concepts):
+                pi = rng.permutation(len(concept_dataset))
+                y = predictions[class_name].values[pi]
+                z = concept_dataset.semantics[:, concept_idx][pi]
+
+                tester = SKIT(config, y, z)
+                testers.append(tester)
+
+            rejected, tau = run_tests(config, testers)
+            results.add(rejected, tau, class_name, concepts)
+
+    results.save(workdir)
+
+
+def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR):
+    pass
+
+
+def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR):
+    pass
+
+
+class ConceptTester(object):
+    def __init__(self, config_name: str):
+        self.config = get_config(config_name)
+
+    def test(self, test_type: str, concept_type: str, workdir: str = c.WORKDIR) -> None:
+        if test_type == TestType.GLOBAL.value:
+            test_fn = test_global
+        if test_type == TestType.GLOBAL_COND.value:
+            test_fn = test_global_cond
+        if test_type == TestType.LOCAL_COND.value:
+            test_fn = test_local_cond
+
+        for config in sweep(self.config):
+            test_fn(config, concept_type, workdir)

@@ -1,12 +1,24 @@
-from abc import ABC, abstractmethod
-from typing import Dict
+from abc import abstractmethod
 
 import numpy as np
 
-from ibydmt.utils import _get_cls, _register_cls
+bets = {}
 
 
-class Bet(ABC):
+def register_bet(name):
+    def register(cls):
+        if name in bets:
+            raise ValueError(f"Bet {name} is already registered")
+        bets[name] = cls
+
+    return register
+
+
+def get_bet(name):
+    return bets[name]
+
+
+class Bet:
     def __init__(self):
         pass
 
@@ -15,22 +27,11 @@ class Bet(ABC):
         pass
 
 
-_BETS: Dict[str, Bet] = {}
-
-
-def register_bet(name):
-    return _register_cls(name, dict=_BETS)
-
-
-def get_bet(name):
-    return _get_cls(name, dict=_BETS)
-
-
 @register_bet("sign")
 class Sign(Bet):
-    def __init__(self, config):
+    def __init__(self):
         super().__init__()
-        self.m = config.get("m", 0.5)
+        self.m = 0.5
         self.prev_g = []
 
     def compute(self, g):
@@ -39,9 +40,9 @@ class Sign(Bet):
 
 @register_bet("tanh")
 class Tanh(Bet):
-    def __init__(self, config):
+    def __init__(self):
         super().__init__()
-        self.alpha = config.get("alpha", 0.20)
+        self.alpha = 0.20
         self.prev_g = []
 
     def compute(self, g):

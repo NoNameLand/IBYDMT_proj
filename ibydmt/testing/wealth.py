@@ -2,6 +2,8 @@ from abc import abstractmethod
 
 import numpy as np
 
+from ibydmt.utils.config import Config
+
 wealths = {}
 
 
@@ -18,8 +20,8 @@ def get_wealth(name):
     return wealths[name]
 
 
-class Wealth(object):
-    def __init__(self, config):
+class Wealth:
+    def __init__(self):
         self.w = 1.0
         self.wealth = [self.w]
 
@@ -30,8 +32,8 @@ class Wealth(object):
 
 @register_wealth("mixture")
 class Mixture(Wealth):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config: Config):
+        super().__init__()
 
         self.grid_size = grid_size = config.grid_size
         self.wealth = np.ones((grid_size,))
@@ -44,13 +46,14 @@ class Mixture(Wealth):
 
 @register_wealth("ons")
 class ONS(Wealth):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config: Config):
+        super().__init__()
 
         self.v = 0
         self.a = 1
 
-        self.min_v, self.max_v = config.get("min_v", 0), config.get("max_v", 1 / 2)
+        self.min_v = config.testing.get("min_v", 0)
+        self.max_v = config.testing.get("max_v", 1 / 2)
         self.wealth_flag = False
 
     def _update_v(self, payoff):

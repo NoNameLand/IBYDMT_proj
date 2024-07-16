@@ -30,10 +30,11 @@ class ImagenetteConfig(Config):
 
         testing = self.testing
         testing.significance_level = 0.05
+        testing.fdr_control = [False, True]
         testing.wealth = "ons"
         testing.bet = "tanh"
         testing.kernel = "rbf"
         testing.kernel_scale_method = "quantile"
         testing.kernel_scale = [0.5, 0.7, 0.9]
-        testing.tau_max = [100, 200, 400, 800, 1600]
+        testing.tau_max = [400, 800, 1600]
         testing.r = 100

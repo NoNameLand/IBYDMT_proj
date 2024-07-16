@@ -1,3 +1,9 @@
+import os
+from enum import Enum
+
+import torch
+from ml_collections import ConfigDict, FrozenConfigDict
+
 configs = {}
 
 
@@ -14,59 +20,79 @@ def get_config(name):
     return configs[name]()
 
 
-class DataConfig:
-    def __init__(self, **kwargs):
-        self.dataset = kwargs.pop("dataset", None)
-        self.clip_backbone = kwargs.pop("clip_backbone", None)
-        self.num_concepts = kwargs.pop("num_concepts", None)
+class TestType(Enum):
+    GLOBAL = "global"
+    GLOBAL_COND = "global_cond"
+    LOCAL_COND = "local_cond"
 
 
-class SpliceConfig:
-    def __init__(self, **kwargs):
-        self.vocab = kwargs.pop("vocab", None)
-        self.vocab_size = kwargs.pop("vocab_size", None)
-        self.l1_penalty = kwargs.pop("l1_penalty", None)
+class ConceptType(Enum):
+    DATASET = "dataset"
+    CLASS = "concept"
+    IMAGE = "image"
 
 
-class PCBMConfig:
-    def __init__(self, **kwargs):
-        self.alpha = kwargs.pop("alpha", None)
-        self.l1_ratio = kwargs.pop("l1_ratio", None)
+class IBYDMTConstants:
+    WORKDIR = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    )
+    DEVICE = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
 
-class cKDEConfig:
-    def __init__(self, **kwargs):
-        self.metric = kwargs.pop("metric", None)
-        self.scale_method = kwargs.pop("scale_method", None)
-        self.scale = kwargs.pop("scale", None)
+class DataConfig(ConfigDict):
+    def __init__(self, config_dict={}):
+        super().__init__()
+        self.dataset = config_dict.get("dataset", None)
+        self.clip_backbone = config_dict.get("clip_backbone", None)
+        self.num_concepts = config_dict.get("num_concepts", None)
 
 
-class TestingConfig:
-    def __init__(self, **kwargs):
-        self.significance_level = kwargs.pop("significance_level", None)
-        self.wealth = kwargs.pop("wealth", None)
-        self.bet = kwargs.pop("bet", None)
-        self.kernel = kwargs.pop("kernel", None)
-        self.kernel_scale_method = kwargs.pop("kernel_scale_method", None)
-        self.kernel_scale = kwargs.pop("kernel_scale", None)
-        self.tau_max = kwargs.pop("tau_max", None)
-        self.r = kwargs.pop("r", None)
+class SpliceConfig(ConfigDict):
+    def __init__(self, config_dict={}):
+        super().__init__()
+        self.vocab = config_dict.get("vocab", None)
+        self.vocab_size = config_dict.get("vocab_size", None)
+        self.l1_penalty = config_dict.get("l1_penalty", None)
 
 
-class Config:
-    def __init__(self, **kwargs):
-        self.name = kwargs.pop("name", None)
-        self.data = DataConfig(**kwargs)
-        self.splice = SpliceConfig(**kwargs)
-        self.pcbm = PCBMConfig(**kwargs)
-        self.ckde = cKDEConfig(**kwargs)
-        self.testing = TestingConfig(**kwargs)
+class PCBMConfig(ConfigDict):
+    def __init__(self, config_dict=None):
+        super().__init__()
+        self.alpha = config_dict.get("alpha", None)
+        self.l1_ratio = config_dict.get("l1_ratio", None)
 
-    def items(self):
-        items = []
-        for key, value in self.__dict__.items():
-            if hasattr(value, "__dict__"):
-                items.extend(value.__dict__.items())
-            else:
-                items.append((key, value))
-        return items
+
+class cKDEConfig(ConfigDict):
+    def __init__(self, config_dict={}):
+        super().__init__()
+        self.metric = config_dict.get("metric", None)
+        self.scale_method = config_dict.get("scale_method", None)
+        self.scale = config_dict.get("scale", None)
+
+
+class TestingConfig(ConfigDict):
+    def __init__(self, config_dict={}):
+        super().__init__()
+        self.significance_level = config_dict.get("significance_level", None)
+        self.fdr_control = config_dict.get("fdr_control", None)
+        self.wealth = config_dict.get("wealth", None)
+        self.bet = config_dict.get("bet", None)
+        self.kernel = config_dict.get("kernel", None)
+        self.kernel_scale_method = config_dict.get("kernel_scale_method", None)
+        self.kernel_scale = config_dict.get("kernel_scale", None)
+        self.tau_max = config_dict.get("tau_max", None)
+        self.r = config_dict.get("r", None)
+
+
+class Config(ConfigDict):
+    def __init__(self, config_dict={}):
+        super().__init__()
+        self.name = config_dict.get("name", None)
+        self.data = DataConfig(config_dict.get("data", {}))
+        self.splice = SpliceConfig(config_dict.get("splice", {}))
+        self.pcbm = PCBMConfig(config_dict.get("pcbm", {}))
+        self.ckde = cKDEConfig(config_dict.get("ckde", {}))
+        self.testing = TestingConfig(config_dict.get("testing", {}))
+
+    def freeze(self):
+        return FrozenConfigDict(self)

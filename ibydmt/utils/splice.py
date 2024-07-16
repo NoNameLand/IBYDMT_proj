@@ -7,7 +7,8 @@ import torch
 from nltk.stem import WordNetLemmatizer
 from torch.utils.data import DataLoader
 
-from ibydmt.utils.constants import device, workdir
+from ibydmt.utils.config import Config
+from ibydmt.utils.config import IBYDMTConstants as c
 from ibydmt.utils.data import get_dataset
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def _lemmatize(concept):
     return [lem.lemmatize(word) for word in subwords]
 
 
-def _select_concepts(config, weights, classes):
+def _select_concepts(config: Config, weights, classes):
     num_concepts = config.data.num_concepts
 
     vocabulary = splice.get_vocabulary(config.splice.vocab, config.splice.vocab_size)
@@ -66,7 +67,7 @@ def _select_concepts(config, weights, classes):
     return list(concepts)
 
 
-def _preamble(config, workdir, train, device):
+def _preamble(config: Config, workdir, train, device):
     _, preprocess = clip.load(config.data.clip_backbone, device=device)
     dataset = get_dataset(config, workdir=workdir, train=train, transform=preprocess)
     loader = DataLoader(dataset, batch_size=1024, shuffle=True)
@@ -84,7 +85,7 @@ def _preamble(config, workdir, train, device):
     )
 
 
-def train_dataset_concepts(config, workdir=workdir, device=device):
+def train_dataset_concepts(config: Config, workdir=c.WORKDIR, device=c.DEVICE):
     dataset, loader, splicemodel = _preamble(config, workdir, True, device)
     classes = dataset.classes
     weights, l0_norm, cosine = splice.decompose_dataset(
@@ -95,7 +96,9 @@ def train_dataset_concepts(config, workdir=workdir, device=device):
     return _select_concepts(config, weights, classes)
 
 
-def train_class_concepts(config, concept_class_name, workdir=workdir, device=device):
+def train_class_concepts(
+    config: Config, concept_class_name, workdir=c.WORKDIR, device=c.DEVICE
+):
     dataset, loader, splicemodel = _preamble(config, workdir, True, device)
     classes = dataset.classes
     assert concept_class_name in classes, ValueError(
@@ -108,7 +111,7 @@ def train_class_concepts(config, concept_class_name, workdir=workdir, device=dev
     return _select_concepts(config, weights[label], classes)
 
 
-def train_image_concepts(config, idx, workdir=workdir, device=device):
+def train_image_concepts(config: Config, idx, workdir=c.WORKDIR, device=c.DEVICE):
     dataset, _, splicemodel = _preamble(config, workdir, False, device)
     image, label = dataset[idx]
     extra_concepts = {

@@ -6,14 +6,19 @@ import clip
 import torch
 
 from ibydmt.utils.concepts import get_concepts
-from ibydmt.utils.constants import device, workdir
+from ibydmt.utils.config import Config
+from ibydmt.utils.config import IBYDMTConstants as c
 
 logger = logging.getLogger(__name__)
 
 
 class CLIPConceptBottleneck:
     def __init__(
-        self, config, workdir=workdir, concept_class_name=None, concept_image_idx=None
+        self,
+        config: Config,
+        workdir=c.WORKDIR,
+        concept_class_name=None,
+        concept_image_idx=None,
     ):
         self.config = config
 
@@ -25,18 +30,18 @@ class CLIPConceptBottleneck:
         )
         self.cbm = None
 
-    def state_path(self, workdir=workdir):
+    def state_path(self, workdir=c.WORKDIR):
         state_dir = os.path.join(workdir, "weights", self.config.name.lower())
         os.makedirs(state_dir, exist_ok=True)
         return os.path.join(state_dir, f"clip_cbm_{self.concept_name}.pkl")
 
     @staticmethod
     def load_or_train(
-        config,
-        workdir=workdir,
+        config: Config,
+        workdir=c.WORKDIR,
         concept_class_name=None,
         concept_image_idx=None,
-        device=device,
+        device=c.DEVICE,
     ):
         model = CLIPConceptBottleneck(
             config,
@@ -63,7 +68,7 @@ class CLIPConceptBottleneck:
             model.save(workdir)
         return model
 
-    def save(self, workdir=workdir):
+    def save(self, workdir=c.WORKDIR):
         with open(self.state_path(workdir=workdir), "wb") as f:
             pickle.dump((self.concepts, self.cbm), f)
 
@@ -71,7 +76,7 @@ class CLIPConceptBottleneck:
         return h @ self.cbm.T
 
     @torch.no_grad()
-    def train(self, device=device):
+    def train(self, device=c.DEVICE):
         logger.info(
             f"Training CLIP CBM for dataset {self.config.data.dataset.lower()}"
             f" and concept_name = {self.concept_name}"

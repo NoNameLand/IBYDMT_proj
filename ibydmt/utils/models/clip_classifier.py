@@ -1,3 +1,4 @@
+import logging
 import os
 import pickle
 
@@ -8,24 +9,27 @@ import torch
 from scipy.special import softmax
 
 from ibydmt.utils.concept_data import get_dataset, get_dataset_with_concepts
-from ibydmt.utils.constants import device, workdir
+from ibydmt.utils.config import Config
+from ibydmt.utils.config import IBYDMTConstants as c
+
+logger = logging.getLogger(__name__)
 
 
 class CLIPClassifier:
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.config = config
 
         self.classes = None
         self.logit_scale = None
         self.classifier = None
 
-    def state_path(self, workdir=workdir):
+    def state_path(self, workdir=c.WORKDIR):
         state_dir = os.path.join(workdir, "weights", self.config.name.lower())
         os.makedirs(state_dir, exist_ok=True)
         return os.path.join(state_dir, f"clip_classifier.pkl")
 
     @staticmethod
-    def load_or_train(config, workdir=workdir, device=device):
+    def load_or_train(config: Config, workdir=c.WORKDIR, device=c.DEVICE):
         model = CLIPClassifier(config)
         state_path = model.state_path(workdir)
 
@@ -43,7 +47,7 @@ class CLIPClassifier:
         return model
 
     @staticmethod
-    def get_predictions(config, workdir=workdir):
+    def get_predictions(config: Config, workdir=c.WORKDIR):
         prediction_path = os.path.join(
             workdir, "results", config.name.lower(), "predictions.csv"
         )
@@ -53,7 +57,7 @@ class CLIPClassifier:
 
         return pd.read_csv(prediction_path)
 
-    def save(self, workdir=workdir):
+    def save(self, workdir=c.WORKDIR):
         with open(self.state_path(workdir=workdir), "wb") as f:
             pickle.dump((self.classes, self.logit_scale, self.classifier), f)
 
@@ -61,7 +65,10 @@ class CLIPClassifier:
         return h @ self.classifier.T
 
     @torch.no_grad()
-    def train(self, device=device):
+    def train(self, device=c.DEVICE):
+        logger.info(
+            f"Training CLIP classifier for dataset {self.config.data.dataset.lower()}"
+        )
         model, _ = clip.load(self.config.data.clip_backbone, device=device)
         logit_scale = model.logit_scale.cpu().numpy()
 
@@ -78,19 +85,22 @@ class CLIPClassifier:
         self.logit_scale = logit_scale
         self.classifier = classifier
 
-    def predict(self, workdir=workdir):
+    def predict(self, workdir=c.WORKDIR):
+        logger.info(
+            "Predicting with CLIP classifier on dataset"
+            f" {self.config.data.dataset.lower()}"
+        )
         dataset = get_dataset_with_concepts(self.config, workdir=workdir, train=False)
         assert dataset.classes == self.classes
 
-        H = dataset.H
-
-        output = self(H)
+        embedding = dataset.embedding
+        output = self(embedding)
         probs = softmax(np.exp(self.logit_scale) * output, axis=-1)
         prediction = np.argmax(probs, axis=-1)
-        accuracy = np.mean((prediction == dataset.Y).astype(float))
+        accuracy = np.mean((prediction == dataset.label).astype(float))
+        logger.info(f"Accuracy: {accuracy:.2%}")
 
         results_dir = os.path.join(workdir, "results", self.config.name.lower())
         os.makedirs(results_dir, exist_ok=True)
-
         df = pd.DataFrame(output, columns=self.classes)
         df.to_csv(os.path.join(results_dir, "predictions.csv"), index=True)

@@ -1,1 +1,1 @@
-from ibydmt.test import ConceptTester
+from ibydmt.tester import ConceptTester

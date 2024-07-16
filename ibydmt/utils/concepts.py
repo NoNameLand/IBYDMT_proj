@@ -2,7 +2,7 @@ import logging
 import os
 
 from ibydmt.utils.config import Config
-from ibydmt.utils.constants import device, workdir
+from ibydmt.utils.config import IBYDMTConstants as c
 from ibydmt.utils.splice import (
     train_class_concepts,
     train_dataset_concepts,
@@ -23,7 +23,7 @@ def get_concept_name(concept_class_name=None, concept_image_idx=None):
 
 def get_concept_path(
     config: Config,
-    workdir: str = workdir,
+    workdir: str = c.WORKDIR,
     concept_class_name: str = None,
     concept_image_idx: str = None,
 ):
@@ -36,7 +36,7 @@ def get_concept_path(
 
 def get_concepts(
     config: Config,
-    workdir: str = workdir,
+    workdir: str = c.WORKDIR,
     concept_class_name: str = None,
     concept_image_idx: str = None,
 ):
@@ -65,10 +65,10 @@ def get_concepts(
 
 def train_concepts(
     config: Config,
-    workdir: str = workdir,
+    workdir: str = c.WORKDIR,
     concept_class_name: str = None,
     concept_image_idx: str = None,
-    device=device,
+    device=c.DEVICE,
 ):
     logger.info(
         f"Training concepts for dataset {config.data.dataset.lower()},"

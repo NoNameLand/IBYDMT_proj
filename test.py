@@ -3,19 +3,7 @@ import os
 
 import configs
 import datasets
-from ibydmt import ConceptTester
-
-
-def test_type(value):
-    if value not in ["global", "global_cond", "local_cond"]:
-        raise argparse.ArgumentTypeError(f"Invalid test type: {value}")
-    return value
-
-
-def concept_type(value):
-    if value not in ["dataset", "class", "image"]:
-        raise argparse.ArgumentTypeError(f"Invalid concept type: {value}")
-    return value
+from ibydmt.tester import ConceptTester
 
 
 def setup_logging(level):
@@ -40,9 +28,9 @@ def setup_logging(level):
 
 def config():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_name", type=str)
-    parser.add_argument("--test_type", type=test_type, default="global")
-    parser.add_argument("--concept_type", type=concept_type, default="dataset")
+    parser.add_argument("--config_name", type=str, default="imagenette")
+    parser.add_argument("--test_type", type=str, default="global")
+    parser.add_argument("--concept_type", type=str, default="dataset")
     parser.add_argument(
         "--workdir", type=str, default=os.path.dirname(os.path.realpath(__file__))
     )
