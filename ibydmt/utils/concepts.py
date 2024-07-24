@@ -2,7 +2,7 @@ import logging
 import os
 
 from ibydmt.utils.config import Config
-from ibydmt.utils.config import IBYDMTConstants as c
+from ibydmt.utils.config import Constants as c
 from ibydmt.utils.splice import (
     train_class_concepts,
     train_dataset_concepts,

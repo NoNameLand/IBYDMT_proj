@@ -63,7 +63,7 @@ class Kernel:
 
 
 class KernelPayoff(Payoff):
-    def __init__(self, config):
+    def __init__(self, config: Config):
         super().__init__(config)
 
         self.kernel = config.testing.kernel
@@ -97,9 +97,9 @@ class HSIC(KernelPayoff):
         self.kernel_y = Kernel(kernel, scale_method, scale)
         self.kernel_z = Kernel(kernel, scale_method, scale)
 
-    def witness_function(self, d, prev):
+    def witness_function(self, d, prev_d):
         y, z = d
-        prev_y, prev_z = prev[:, 0], prev[:, 1]
+        prev_y, prev_z = prev_d[:, 0], prev_d[:, 1]
 
         y_mat = self.kernel_y(y.reshape(-1, 1), prev_y.reshape(-1, 1))
         z_mat = self.kernel_z(z.reshape(-1, 1), prev_z.reshape(-1, 1))
@@ -121,14 +121,14 @@ class cMMD(KernelPayoff):
         self.kernel_zj = Kernel(kernel, scale_method, scale)
         self.kernel_cond_z = Kernel(kernel, scale_method, scale)
 
-    def witness_function(self, d, prev):
+    def witness_function(self, d, prev_d):
         y, zj, cond_z = d[0], d[1], d[2:]
 
         prev_y, prev_zj, prev_null_zj, prev_cond_z = (
-            prev[:, 0],
-            prev[:, 1],
-            prev[:, 2],
-            prev[:, 3:],
+            prev_d[:, 0],
+            prev_d[:, 1],
+            prev_d[:, 2],
+            prev_d[:, 3:],
         )
 
         y_mat = self.kernel_y(y.reshape(-1, 1), prev_y.reshape(-1, 1))
@@ -150,11 +150,11 @@ class xMMD(KernelPayoff):
 
         self.kernel = Kernel(self.kernel, self.scale_method, self.scale)
 
-    def witness_function(self, u, prev_d):
+    def witness_function(self, d, prev_d):
         prev_y, prev_y_null = prev_d[:, 0], prev_d[:, 1]
 
-        mu_y = np.mean(self.kernel(u.reshape(-1, 1), prev_y.reshape(-1, 1)), axis=1)
+        mu_y = np.mean(self.kernel(d.reshape(-1, 1), prev_y.reshape(-1, 1)), axis=1)
         mu_y_null = np.mean(
-            self.kernel(u.reshape(-1, 1), prev_y_null.reshape(-1, 1)), axis=1
+            self.kernel(d.reshape(-1, 1), prev_y_null.reshape(-1, 1)), axis=1
         )
         return mu_y - mu_y_null

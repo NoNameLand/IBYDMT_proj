@@ -7,7 +7,7 @@ import torch
 
 from ibydmt.utils.concepts import get_concepts
 from ibydmt.utils.config import Config
-from ibydmt.utils.config import IBYDMTConstants as c
+from ibydmt.utils.config import Constants as c
 
 logger = logging.getLogger(__name__)
 

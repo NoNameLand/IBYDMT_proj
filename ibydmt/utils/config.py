@@ -3,6 +3,10 @@ from enum import Enum
 
 import torch
 from ml_collections import ConfigDict, FrozenConfigDict
+from numpy import ndarray
+
+Array = ndarray | torch.Tensor
+
 
 configs = {}
 
@@ -32,7 +36,7 @@ class ConceptType(Enum):
     IMAGE = "image"
 
 
-class IBYDMTConstants:
+class Constants:
     WORKDIR = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     )

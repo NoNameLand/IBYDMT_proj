@@ -10,7 +10,7 @@ from scipy.special import softmax
 
 from ibydmt.utils.concept_data import get_dataset, get_dataset_with_concepts
 from ibydmt.utils.config import Config
-from ibydmt.utils.config import IBYDMTConstants as c
+from ibydmt.utils.config import Constants as c
 
 logger = logging.getLogger(__name__)
 

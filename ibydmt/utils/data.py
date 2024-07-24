@@ -1,6 +1,6 @@
 import os
 
-from ibydmt.utils.config import IBYDMTConstants as c
+from ibydmt.utils.config import Constants as c
 
 datasets = {}
 

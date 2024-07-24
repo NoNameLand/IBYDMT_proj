@@ -8,7 +8,7 @@ from nltk.stem import WordNetLemmatizer
 from torch.utils.data import DataLoader
 
 from ibydmt.utils.config import Config
-from ibydmt.utils.config import IBYDMTConstants as c
+from ibydmt.utils.config import Constants as c
 from ibydmt.utils.data import get_dataset
 
 logger = logging.getLogger(__name__)

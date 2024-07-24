@@ -16,7 +16,7 @@ class DictionaryAccumulator(UserDict):
 
 
 class TestingResults:
-    def __init__(self, config: Config, test_type, concept_type):
+    def __init__(self, config: Config, test_type: str, concept_type: str):
         self.name = config.name.lower()
         self.kernel = config.testing.kernel
         self.kernel_scale = config.testing.kernel_scale
@@ -44,6 +44,8 @@ class TestingResults:
         state_name = (
             f"{self.kernel}_{self.kernel_scale}_{self.tau_max}_{self.concept_type}"
         )
+        if self.fdr_control:
+            state_name = f"{state_name}_fdr"
         if "cond" in self.test_type:
             state_name = f"{state_name}_{self.ckde_scale_method}_{self.ckde_scale}"
         return os.path.join(state_dir, f"{state_name}.pt")

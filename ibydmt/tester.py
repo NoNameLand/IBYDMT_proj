@@ -6,13 +6,15 @@ import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from ibydmt.testing.procedure import SKIT, SequentialTester
+from ibydmt.classifiers import CLIPClassifier
+from ibydmt.samplers import cKDE
+from ibydmt.testing.fdr import FDRPostProcessor
+from ibydmt.testing.procedure import SKIT, SequentialTester, cSKIT
 from ibydmt.utils.concept_data import get_dataset_with_concepts
 from ibydmt.utils.config import ConceptType, Config
-from ibydmt.utils.config import IBYDMTConstants as c
+from ibydmt.utils.config import Constants as c
 from ibydmt.utils.config import TestType, get_config
 from ibydmt.utils.data import get_dataset
-from ibydmt.utils.models.clip_classifier import CLIPClassifier
 from ibydmt.utils.result import TestingResults
 
 logger = logging.getLogger(__name__)
@@ -168,12 +170,13 @@ rng = np.random.default_rng()
 def sweep(
     config: Config,
     sweep_keys=[
-        "ckde.scale",
         "testing.fdr_control",
         "testing.kernel",
         "testing.kernel_scale",
         "testing.tau_max",
     ],
+    ckde_sweep_keys=["ckde.scale"],
+    sweep_ckde=False,
 ):
     def _get(dict, key):
         keys = key.split(".")
@@ -192,6 +195,8 @@ def sweep(
     to_iterable = lambda v: v if isinstance(v, list) else [v]
 
     config_dict = config.to_dict()
+    if sweep_ckde:
+        sweep_keys += ckde_sweep_keys
     sweep_values = [_get(config_dict, key) for key in sweep_keys]
     sweep = list(product(*map(to_iterable, sweep_values)))
 
@@ -211,9 +216,9 @@ def run_tests(config: Config, testers: List[SequentialTester]):
     k = len(testers)
 
     if fdr_control:
-        _significance_level = significance_level / k
+        postprocessor = FDRPostProcessor()
         for tester in testers:
-            tester.significance_level = _significance_level
+            tester.significance_level = significance_level / k
 
     results = Parallel(n_jobs=-1)(
         delayed(tester.test)(return_wealth=True) for tester in testers
@@ -221,44 +226,14 @@ def run_tests(config: Config, testers: List[SequentialTester]):
     rejected, tau, wealths = zip(*results)
 
     if fdr_control:
-        _wealths = np.stack(
-            [
-                np.pad(
-                    wealth,
-                    (0, tau_max - len(wealth)),
-                    mode="constant",
-                    constant_values=-np.inf,
-                )
-                for wealth in wealths
-            ]
-        )
-        rejected = np.zeros(_wealths.shape[0], dtype=bool)
-        tau = (config.testing.tau_max - 1) * np.ones(_wealths.shape[0], dtype=int)
-
-        for n in range(1, k + 1):
-            t = k / (significance_level * n)
-            tester_idx, tester_tau = np.nonzero(_wealths >= t)
-            if len(tester_tau) == 0:
-                break
-
-            first_idx = np.argmin(tester_tau)
-            rejected_tau = tester_tau[first_idx]
-            rejected_idx = tester_idx[first_idx]
-
-            rejected[rejected_idx] = True
-            tau[rejected_idx] = rejected_tau
-
-            _wealths[rejected_idx] = -np.inf
-
-        rejected = tuple(rejected)
-        tau = tuple(tau)
+        rejected, tau = postprocessor(significance_level, wealths, tau_max=tau_max)
 
     return rejected, tau
 
 
 def test_global(config: Config, concept_type: str, workdir: str = c.WORKDIR):
     logger.info(
-        "Testing for global semantic independence of dataset"
+        "Testing for global semantic importance of dataset"
         f" {config.data.dataset.lower()} with concept_type = {concept_type}, kernel ="
         f" {config.testing.kernel}, kernel_scale = {config.testing.kernel_scale},"
         f" tau_max = {config.testing.tau_max}, fdr_control ="
@@ -287,10 +262,10 @@ def test_global(config: Config, concept_type: str, workdir: str = c.WORKDIR):
             testers = []
             for concept_idx, _ in enumerate(concepts):
                 pi = rng.permutation(len(concept_dataset))
-                y = predictions[class_name].values[pi]
-                z = concept_dataset.semantics[:, concept_idx][pi]
+                Y = predictions[class_name].values[pi]
+                Z = concept_dataset.semantics[:, concept_idx][pi]
 
-                tester = SKIT(config, y, z)
+                tester = SKIT(config, Y, Z)
                 testers.append(tester)
 
             rejected, tau = run_tests(config, testers)
@@ -300,11 +275,58 @@ def test_global(config: Config, concept_type: str, workdir: str = c.WORKDIR):
 
 
 def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR):
-    pass
+    logger.info(
+        "Testing for global conditional semantic importance of dataset"
+        f" {config.data.dataset.lower()} with concept_type = {concept_type}, kernel ="
+        f" {config.testing.kernel}, kernel_scale = {config.testing.kernel_scale},"
+        f" tau_max = {config.testing.tau_max}, ckde_scale = {config.ckde.scale},"
+        f" fdr_control = {config.testing.fdr_control}"
+    )
+
+    dataset = get_dataset(config, workdir=workdir)
+    predictions = CLIPClassifier.get_predictions(config, workdir=workdir)
+
+    results = TestingResults(config, "global_cond", concept_type)
+
+    classes = dataset.classes
+    for class_name in classes:
+        logger.info(f"Testing class {class_name}")
+
+        concept_class_name = None
+        if concept_type == ConceptType.CLASS.value:
+            concept_class_name = class_name
+
+        concept_dataset = get_dataset_with_concepts(
+            config, workdir=workdir, train=False, concept_class_name=concept_class_name
+        )
+        concepts = concept_dataset.concepts
+
+        ckde = cKDE(config, concept_class_name=concept_class_name)
+
+        for _ in tqdm(range(config.testing.r)):
+            testers = []
+            for concept_idx, _ in enumerate(concepts):
+                pi = rng.permutation(len(concept_dataset))
+                Y = predictions[class_name].values[pi]
+                Z = concept_dataset.semantics[pi]
+
+                tester = cSKIT(config, Y, Z, concept_idx, ckde.sample_concept)
+                testers.append(tester)
+
+            rejected, tau = run_tests(config, testers)
+            results.add(rejected, tau, class_name, concepts)
+
+    results.save(workdir)
 
 
 def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR):
-    pass
+    logger.info(
+        "Testing for local conditional semantic importance of dataset"
+        f" {config.data.dataset.lower()} with cocnept_type = {concept_type}, kernel ="
+        f" {config.testing.kernel}, kernel_scale = {config.testing.kernel_scale},"
+        f" tau_max = {config.testing.tau_max}, ckde_scale = {config.ckde.scale},"
+        f" fdr_control = {config.testing.fdr_control}"
+    )
 
 
 class ConceptTester(object):
@@ -314,10 +336,13 @@ class ConceptTester(object):
     def test(self, test_type: str, concept_type: str, workdir: str = c.WORKDIR) -> None:
         if test_type == TestType.GLOBAL.value:
             test_fn = test_global
+            sweep_ckde = False
         if test_type == TestType.GLOBAL_COND.value:
             test_fn = test_global_cond
+            sweep_ckde = True
         if test_type == TestType.LOCAL_COND.value:
             test_fn = test_local_cond
+            sweep_ckde = True
 
-        for config in sweep(self.config):
+        for config in sweep(self.config, sweep_ckde=sweep_ckde):
             test_fn(config, concept_type, workdir)

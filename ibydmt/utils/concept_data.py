@@ -8,11 +8,11 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from ibydmt.utils.clip_cbm import CLIPConceptBottleneck
 from ibydmt.utils.concepts import get_concepts
 from ibydmt.utils.config import Config
-from ibydmt.utils.config import IBYDMTConstants as c
+from ibydmt.utils.config import Constants as c
 from ibydmt.utils.data import get_dataset
-from ibydmt.utils.models.clip_cbm import CLIPConceptBottleneck
 
 logger = logging.getLogger(__name__)
 
