@@ -1,5 +1,6 @@
 import os
 from enum import Enum
+from typing import List
 
 import torch
 from ml_collections import ConfigDict, FrozenConfigDict
@@ -77,21 +78,22 @@ class cKDEConfig(ConfigDict):
 class TestingConfig(ConfigDict):
     def __init__(self, config_dict={}):
         super().__init__()
-        self.significance_level = config_dict.get("significance_level", None)
-        self.fdr_control = config_dict.get("fdr_control", None)
-        self.wealth = config_dict.get("wealth", None)
-        self.bet = config_dict.get("bet", None)
-        self.kernel = config_dict.get("kernel", None)
-        self.kernel_scale_method = config_dict.get("kernel_scale_method", None)
-        self.kernel_scale = config_dict.get("kernel_scale", None)
-        self.tau_max = config_dict.get("tau_max", None)
-        self.r = config_dict.get("r", None)
+        self.significance_level: float = config_dict.get("significance_level", None)
+        self.fdr_control: bool = config_dict.get("fdr_control", None)
+        self.wealth: str = config_dict.get("wealth", None)
+        self.bet: str = config_dict.get("bet", None)
+        self.kernel: str = config_dict.get("kernel", None)
+        self.kernel_scale_method: str = config_dict.get("kernel_scale_method", None)
+        self.kernel_scale: float = config_dict.get("kernel_scale", None)
+        self.tau_max: int = config_dict.get("tau_max", None)
+        self.r: int = config_dict.get("r", None)
+        self.cardinalities: List[int] = [1, 2, 4, 8]
 
 
 class Config(ConfigDict):
     def __init__(self, config_dict={}):
         super().__init__()
-        self.name = config_dict.get("name", None)
+        self.name: str = config_dict.get("name", None)
         self.data = DataConfig(config_dict.get("data", {}))
         self.splice = SpliceConfig(config_dict.get("splice", {}))
         self.pcbm = PCBMConfig(config_dict.get("pcbm", {}))

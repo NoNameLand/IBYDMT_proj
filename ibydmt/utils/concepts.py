@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Optional
 
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
@@ -12,7 +13,9 @@ from ibydmt.utils.splice import (
 logger = logging.getLogger(__name__)
 
 
-def get_concept_name(concept_class_name=None, concept_image_idx=None):
+def get_concept_name(
+    concept_class_name: Optional[str] = None, concept_image_idx: Optional[int] = None
+):
     concept_name = "dataset"
     if concept_class_name is not None:
         concept_name = concept_class_name.lower().replace(" ", "_")
@@ -24,8 +27,8 @@ def get_concept_name(concept_class_name=None, concept_image_idx=None):
 def get_concept_path(
     config: Config,
     workdir: str = c.WORKDIR,
-    concept_class_name: str = None,
-    concept_image_idx: str = None,
+    concept_class_name: Optional[str] = None,
+    concept_image_idx: Optional[int] = None,
 ):
     concept_name = get_concept_name(
         concept_class_name=concept_class_name, concept_image_idx=concept_image_idx
@@ -37,8 +40,8 @@ def get_concept_path(
 def get_concepts(
     config: Config,
     workdir: str = c.WORKDIR,
-    concept_class_name: str = None,
-    concept_image_idx: str = None,
+    concept_class_name: Optional[str] = None,
+    concept_image_idx: Optional[int] = None,
 ):
     concept_name = get_concept_name(
         concept_class_name=concept_class_name, concept_image_idx=concept_image_idx
@@ -66,8 +69,8 @@ def get_concepts(
 def train_concepts(
     config: Config,
     workdir: str = c.WORKDIR,
-    concept_class_name: str = None,
-    concept_image_idx: str = None,
+    concept_class_name: Optional[str] = None,
+    concept_image_idx: Optional[int] = None,
     device=c.DEVICE,
 ):
     logger.info(

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.stats import gaussian_kde
@@ -7,7 +9,12 @@ from ibydmt.utils.config import Config
 
 
 class cKDE:
-    def __init__(self, config: Config, concept_class_name=None, concept_image_idx=None):
+    def __init__(
+        self,
+        config: Config,
+        concept_class_name: Optional[str] = None,
+        concept_image_idx: Optional[int] = None,
+    ):
         ckde_config = config.ckde
         self.metric = ckde_config.get("metric", "euclidean")
         self.scale_method = ckde_config.get("scale_method", "neff")

@@ -1,5 +1,8 @@
+import json
 import logging
+import os
 from itertools import product
+from random import shuffle
 from typing import List
 
 import numpy as np
@@ -9,7 +12,7 @@ from tqdm import tqdm
 from ibydmt.classifiers import CLIPClassifier
 from ibydmt.samplers import cKDE
 from ibydmt.testing.fdr import FDRPostProcessor
-from ibydmt.testing.procedure import SKIT, SequentialTester, cSKIT
+from ibydmt.testing.procedure import SKIT, SequentialTester, cSKIT, xSKIT
 from ibydmt.utils.concept_data import get_dataset_with_concepts
 from ibydmt.utils.config import ConceptType, Config
 from ibydmt.utils.config import Constants as c
@@ -209,6 +212,40 @@ def sweep(
     return configs
 
 
+def get_local_test_idx(config: Config, workdir: str = c.WORKDIR):
+    results_dir = os.path.join(workdir, "results", config.name.lower(), "local_cond")
+    os.makedirs(results_dir, exist_ok=True)
+
+    test_idx_path = os.path.join(results_dir, "local_test_idx.json")
+    if not os.path.exists(test_idx_path):
+        dataset = get_dataset_with_concepts(config, train=False)
+        class_idx = {
+            class_name: np.nonzero(dataset.label == class_idx)[0].tolist()
+            for class_idx, class_name in enumerate(dataset.classes)
+        }
+
+        samples_per_class = config.testing.get("samples_per_class", 2)
+        test_idx = {
+            class_name: rng.choice(
+                _class_idx, samples_per_class, replace=False
+            ).tolist()
+            for class_name, _class_idx in class_idx.items()
+        }
+
+        with open(test_idx_path, "w") as f:
+            json.dump(test_idx, f)
+
+    with open(test_idx_path, "r") as f:
+        test_idx = json.load(f)
+    return test_idx
+
+
+def sample_random_subset(concepts: List[str], concept_idx: int, cardinality: int):
+    sample_idx = list(set(range(len(concepts))) - {concept_idx})
+    shuffle(sample_idx)
+    return sample_idx[:cardinality]
+
+
 def run_tests(config: Config, testers: List[SequentialTester]):
     significance_level = config.testing.significance_level
     tau_max = config.testing.tau_max
@@ -322,11 +359,82 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
 def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR):
     logger.info(
         "Testing for local conditional semantic importance of dataset"
-        f" {config.data.dataset.lower()} with cocnept_type = {concept_type}, kernel ="
+        f" {config.data.dataset.lower()} with concept_type = {concept_type}, kernel ="
         f" {config.testing.kernel}, kernel_scale = {config.testing.kernel_scale},"
         f" tau_max = {config.testing.tau_max}, ckde_scale = {config.ckde.scale},"
         f" fdr_control = {config.testing.fdr_control}"
     )
+
+    dataset = get_dataset(config, workdir=workdir)
+    classifier = CLIPClassifier.load_or_train(config, workdir=workdir)
+
+    test_idx = get_local_test_idx(config, workdir=workdir)
+    cardinalities = config.testing.cardinalities
+    results = TestingResults(config, "local_cond", concept_type)
+
+    classes = dataset.classes
+    for class_name, class_test_idx in test_idx.items():
+        class_idx = classes.index(class_name)
+
+        class_test = list(product(class_test_idx, cardinalities))
+        for test_idx, cardinality in class_test:
+            logger.info(
+                f"Testing id = {test_idx} (class = {class_name}) with cardinality ="
+                f" {cardinality}"
+            )
+
+            concept_class_name = None
+            concept_image_idx = None
+            if concept_type == ConceptType.CLASS.value:
+                concept_class_name = class_name
+            if concept_type == ConceptType.IMAGE.value:
+                concept_image_idx = test_idx
+
+            concept_dataset = get_dataset_with_concepts(
+                config,
+                workdir=workdir,
+                train=False,
+                concept_class_name=concept_class_name,
+                concept_image_idx=concept_image_idx,
+            )
+            concepts = concept_dataset.concepts
+
+            ckde = cKDE(
+                config,
+                concept_class_name=concept_class_name,
+                concept_image_idx=concept_image_idx,
+            )
+
+            z = concept_dataset.semantics[test_idx]
+
+            for _ in tqdm(range(config.testing.r)):
+                testers = []
+                for concept_idx, _ in enumerate(concepts):
+                    subset_idx = sample_random_subset(
+                        concepts, concept_idx, cardinality
+                    )
+
+                    tester = xSKIT(
+                        config,
+                        z,
+                        concept_idx,
+                        subset_idx,
+                        ckde.sample_embedding,
+                        classifier,
+                        class_idx=class_idx,
+                    )
+
+                    testers.append(tester)
+
+                rejected, tau = run_tests(config, testers)
+                results.add(
+                    rejected,
+                    tau,
+                    class_name,
+                    concepts,
+                    idx=test_idx,
+                    cardinality=cardinality,
+                )
 
 
 class ConceptTester(object):

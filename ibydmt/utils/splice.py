@@ -108,6 +108,8 @@ def train_class_concepts(
     weights, l0_norm, cosine = splice.decompose_classes(
         loader, label, splicemodel=splicemodel, device=device
     )
+    logger.info(f"Average SpLiCe Decomposition L0 Norm: {l0_norm:.0f}")
+    logger.info(f"Average CLIP, SpLiCe Cosine Similarity: {cosine:.4f}")
     return _select_concepts(config, weights[label], classes)
 
 
@@ -129,6 +131,9 @@ def train_image_concepts(config: Config, idx, workdir=c.WORKDIR, device=c.DEVICE
     weights, l0_norm, cosine = splice.decompose_image(
         image.unsqueeze(0), splicemodel=splicemodel, device=device
     )
+    logger.info(f"Average SpLiCe Decomposition L0 Norm: {l0_norm:.0f}")
+    logger.info(f"Average CLIP, SpLiCe Cosine Similarity: {cosine:.4f}")
+
     image_concepts = _select_concepts(
         config, weights.squeeze(), [dataset.classes[label]]
     )
