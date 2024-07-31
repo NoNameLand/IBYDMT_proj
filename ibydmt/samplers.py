@@ -83,6 +83,6 @@ class cKDE:
         return np.concatenate([self._sample(_z, cond_idx, m) for _z in z], axis=0)
 
     def sample_embedding(self, z, cond_idx, m=1):
-        sample_z = self.sample_concept(z, cond_idx, m)
+        sample_z = self.sample_concept(z, cond_idx, m=m)
         nn_idx = self.nearest_neighbor(sample_z)
         return self.embedding[nn_idx]

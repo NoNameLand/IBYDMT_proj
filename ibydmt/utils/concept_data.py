@@ -8,11 +8,12 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from ibydmt.utils.clip_cbm import CLIPConceptBottleneck
 from ibydmt.utils.concepts import get_concepts
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
 from ibydmt.utils.data import get_dataset
+from ibydmt.utils.multimodal import get_image_encoder, get_safe_backbone
+from ibydmt.zeroshot_cbm import ZeroShotCBM
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +65,11 @@ class DatasetWithConcepts(Dataset):
         self.return_image = return_image
 
         op = "train" if train else "test"
+        backbone = get_safe_backbone(config)
         data_dir = os.path.join(self.root, config.data.dataset.lower())
-        data_path = os.path.join(data_dir, f"{op}_{self.concept_name}.parquet")
+        data_path = os.path.join(
+            data_dir, f"{op}_{backbone}_{self.concept_name}.parquet"
+        )
         if not os.path.exists(data_path):
             os.makedirs(data_dir, exist_ok=True)
 
@@ -105,16 +109,17 @@ def project_dataset_with_concepts(
 ):
     logger.info(
         f"Encoding dataset {config.data.dataset.lower()} (train = {train}) with"
+        f" backbone = {config.data.backbone},"
         f" concept_class_name = {concept_class_name},"
         f" concept_image_idx = {concept_image_idx}"
     )
-    concept_bottleneck = CLIPConceptBottleneck.load_or_train(
+    concept_bottleneck = ZeroShotCBM.load_or_train(
         config,
         workdir=workdir,
         concept_class_name=concept_class_name,
         concept_image_idx=concept_image_idx,
     )
-    model, preprocess = clip.load(config.data.clip_backbone, device=device)
+    preprocess, encode_image = get_image_encoder(config, device=device)
 
     dataset = get_dataset(config, workdir=workdir, train=train, transform=preprocess)
     dataloader = DataLoader(dataset, batch_size=128, shuffle=False)
@@ -125,7 +130,7 @@ def project_dataset_with_concepts(
 
         image = image.to(device)
 
-        h = model.encode_image(image).float()
+        h = encode_image(image).float()
         h = h / torch.linalg.norm(h, dim=1, keepdim=True)
         h = h.cpu().numpy()
         z = concept_bottleneck(h)

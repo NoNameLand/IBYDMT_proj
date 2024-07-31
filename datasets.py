@@ -13,15 +13,6 @@ workdir = os.path.dirname(os.path.realpath(__file__))
 data_dir = os.path.join(workdir, "data")
 
 
-# def get_dataset(config, train=True, transform=None):
-#     if config.data.dataset.lower() == "imagenette":
-#         root = os.path.join(data_dir, "imagenette2")
-#         dataset = Imagenette(root=root, train=train, transform=transform)
-#     else:
-#         raise NotImplementedError(f"Unknown dataset: {dataset}.")
-#     return dataset
-
-
 class CountingDataset(Dataset):
     def __init__(self, train):
         super().__init__()
@@ -69,6 +60,52 @@ class Imagenette(VisionDataset):
 
         self.samples = make_dataset(
             self.image_root, self.wnid_to_idx, extensions=".jpeg"
+        )
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        path, label = self.samples[idx]
+        image = Image.open(path).convert("RGB")
+
+        if self.transform is not None:
+            image = self.transform(image)
+
+        return image, label
+
+
+# @register_dataset(name="cub")
+class CUB(VisionDataset):
+    def __init__(self, root, train=True, transform=None):
+        super().__init__(root, transform=transform)
+        self.train = train
+
+        image_root = os.path.join(root, "CUB", "images")
+        _, wnid_to_idx = find_classes(image_root)
+
+        with open(os.path.join(root, "CUB", "images.txt"), "r") as f:
+            lines = f.readlines()
+            lines = [line.strip().split() for line in lines]
+            filename_to_idx = {filename: int(idx) for idx, filename in lines}
+
+        with open(os.path.join(root, "CUB", "train_test_split.txt"), "r") as f:
+            lines = f.readlines()
+            lines = [line.strip().split() for line in lines]
+            idx_to_split = {int(idx): int(split) for idx, split in lines}
+
+        def belongs_to_split(filename):
+            if not filename.endswith(".jpg"):
+                return False
+
+            filename = "/".join(filename.split("/")[-2:])
+            if train:
+                return idx_to_split[filename_to_idx[filename]] == 1
+            else:
+                return idx_to_split[filename_to_idx[filename]] == 0
+
+        self.samples = make_dataset(
+            image_root, wnid_to_idx, is_valid_file=belongs_to_split
         )
 
     def __len__(self):

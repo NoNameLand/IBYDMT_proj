@@ -1,25 +1,27 @@
-from typing import List
+from typing import Iterable
 
 import numpy as np
 
 from ibydmt.testing.wealth import Wealth
+from ibydmt.utils.config import Config
 
 
 class FDRPostProcessor:
-    def __call__(
-        self, significance_level: float, wealths: List[Wealth], tau_max: int = None
-    ):
+    def __init__(self, config: Config):
+        self.significance_level = config.testing.significance_level
+        self.tau_max = config.testing.tau_max
+
+    def __call__(self, wealths: Iterable[Wealth]):
         k = len(wealths)
-        tau_max = tau_max or max([len(w.wealth) for w in wealths])
 
         rejected = np.zeros(k, dtype=bool)
-        tau = (tau_max - 1) * np.ones(k, dtype=int)
+        tau = (self.tau_max - 1) * np.ones(k, dtype=int)
 
         _wealths = np.stack(
             [
                 np.pad(
                     w.wealth,
-                    (0, tau_max - len(w.wealth)),
+                    (0, self.tau_max - len(w.wealth)),
                     mode="constant",
                     constant_values=-np.inf,
                 )
@@ -28,8 +30,8 @@ class FDRPostProcessor:
         )
 
         for n in range(1, k + 1):
-            threshold = k / (significance_level * n)
-            _idx, _tau = np.nonzero(_wealths >= threshold)
+            threshold = k / (self.significance_level * n)
+            _idx, _tau = np.nonzero(_wealths > threshold)
             if len(_idx) == 0:
                 break
 

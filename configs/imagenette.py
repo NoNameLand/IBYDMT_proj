@@ -11,7 +11,15 @@ class ImagenetteConfig(Config):
 
         data = self.data
         data.dataset = "imagenette"
-        data.clip_backbone = "ViT-B/32"
+        data.backbone = [
+            "clip:RN50",
+            "clip:ViT-B/32",
+            "clip:ViT-L/14",
+            "open_clip:ViT-B-32",
+            "open_clip:ViT-L-14",
+            "flava",
+            "align",
+        ]
         data.num_concepts = 20
 
         splice = self.splice
@@ -26,15 +34,14 @@ class ImagenetteConfig(Config):
         ckde = self.ckde
         ckde.metric = "euclidean"
         ckde.scale_method = "neff"
-        ckde.scale = [1000, 2000, 4000]
+        ckde.scale = 2000
 
         testing = self.testing
         testing.significance_level = 0.05
-        testing.fdr_control = [False, True]
         testing.wealth = "ons"
         testing.bet = "tanh"
         testing.kernel = "rbf"
         testing.kernel_scale_method = "quantile"
-        testing.kernel_scale = [0.5, 0.7, 0.9]
-        testing.tau_max = [400, 800, 1600]
+        testing.kernel_scale = 0.5
+        testing.tau_max = 200
         testing.r = 100

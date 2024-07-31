@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from collections import deque
 from enum import Enum
-from typing import Optional, Protocol, Tuple
+from typing import Optional, Protocol
 
 import numpy as np
 from jaxtyping import Float
@@ -13,6 +13,8 @@ from ibydmt.utils.config import Array, Config
 
 class StoppingCriteria(Enum):
     REJECTION = "rejection"
+    VALUE = "value"
+    END = "end"
 
 
 class ConditionalConceptSampler(Protocol):
@@ -49,18 +51,24 @@ class SequentialTester:
         pass
 
     def test(
-        self, stop_on="rejection", return_wealth=False
-    ) -> Tuple[bool, int, Wealth | None]:
+        self,
+        stop_on: str = "rejection",
+        return_wealth: bool = False,
+        stop_value: Optional[float] = None,
+    ):
         self.initialize()
-        rejected = False
-        tau = self.tau_max - 1
+        rejected, tau = False, self.tau_max - 1
         for t in range(1, self.tau_max):
             payoff = self.step()
 
             self.wealth.update(payoff)
-            if self.wealth.w >= 1 / self.significance_level:
-                rejected = True
-                tau = min(tau, t)
+
+            if stop_on == StoppingCriteria.VALUE.value:
+                if self.wealth.w > stop_value:
+                    break
+
+            if not rejected and self.wealth.w > 1 / self.significance_level:
+                rejected, tau = True, t
 
                 if stop_on == StoppingCriteria.REJECTION.value:
                     break
@@ -131,12 +139,12 @@ class cSKIT(SequentialTester):
 
     def step(self):
         y, zj, null_zj, cond_z = self.sample()
-        d = np.concatenate([y, zj, null_zj, cond_z], axis=-1)
 
         u = np.concatenate([y, zj, cond_z], axis=-1)
         null_u = np.concatenate([y, null_zj, cond_z], axis=-1)
         payoff = self.payoff.compute(u, null_u, self.prev_d)
 
+        d = np.concatenate([y, zj, null_zj, cond_z], axis=-1)
         self.prev_d = np.vstack([self.prev_d, d])
         return payoff
 
@@ -176,8 +184,7 @@ class xSKIT(SequentialTester):
         self.classifier_kwargs = classifier_kwargs
 
     def sample(self):
-        y, null_y = self.queue.pop()
-        raise NotImplementedError
+        return self.queue.pop()
 
     def initialize(self):
         Cuj = self.C + [self.j]
@@ -185,7 +192,17 @@ class xSKIT(SequentialTester):
         h = self.cond_p(self.z, Cuj, **self.cond_p_kwargs)
         null_z = self.cond_p(self.z, self.C, **self.cond_p_kwargs)
 
-        y = self.classifier(h)[:, self.class_idx]
-        null_y = self.classifier(null_z)[:, self.class_idx]
+        y = self.classifier(h)[:, [self.class_idx]]
+        null_y = self.classifier(null_z)[:, [self.class_idx]]
 
         self.queue.extend(zip(y, null_y))
+        self.prev_d = np.stack(self.sample(), axis=1)
+
+    def step(self):
+        y, null_y = self.sample()
+
+        payoff = self.payoff.compute(y, null_y, self.prev_d)
+
+        d = np.concatenate([y, null_y], axis=-1)
+        self.prev_d = np.vstack([self.prev_d, d])
+        return payoff

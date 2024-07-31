@@ -153,8 +153,6 @@ class xMMD(KernelPayoff):
     def witness_function(self, d, prev_d):
         prev_y, prev_y_null = prev_d[:, 0], prev_d[:, 1]
 
-        mu_y = np.mean(self.kernel(d.reshape(-1, 1), prev_y.reshape(-1, 1)), axis=1)
-        mu_y_null = np.mean(
-            self.kernel(d.reshape(-1, 1), prev_y_null.reshape(-1, 1)), axis=1
-        )
+        mu_y = np.mean(self.kernel(d.reshape(-1, 1), prev_y.reshape(-1, 1)))
+        mu_y_null = np.mean(self.kernel(d.reshape(-1, 1), prev_y_null.reshape(-1, 1)))
         return mu_y - mu_y_null

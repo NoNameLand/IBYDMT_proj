@@ -14,7 +14,7 @@ def register_dataset(name):
     return register
 
 
-def get_dataset(config, workdir=c.WORKDIR, train=True, transform=None):
+def get_dataset(config, train=True, transform=None, workdir=c.WORKDIR):
     name = config.data.dataset.lower()
     root = os.path.join(workdir, "data")
     return datasets[name](root, train=train, transform=transform)
