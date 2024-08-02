@@ -1,6 +1,7 @@
 import os
 from typing import Any, Iterable, Mapping, Optional
 
+import numpy as np
 import pandas as pd
 
 from ibydmt.utils.config import Config
@@ -10,6 +11,7 @@ from ibydmt.utils.config import Constants as c
 class TestingResults:
     def __init__(self, config: Config, test_type: str, concept_type: str):
         self.name = config.name.lower()
+        self.backbone_name = config.backbone_name()
         self.significance_level = config.testing.significance_level
         self.kernel = config.testing.kernel
         self.kernel_scale = config.testing.kernel_scale
@@ -33,11 +35,7 @@ class TestingResults:
         state_dir = os.path.join(workdir, "results", self.name, self.test_type)
         os.makedirs(state_dir, exist_ok=True)
 
-        state_name = (
-            f"{self.kernel}_{self.kernel_scale}_{self.tau_max}_{self.concept_type}"
-        )
-        if self.fdr_control == True:
-            state_name = f"{state_name}_fdr"
+        state_name = f"{self.backbone_name}_{self.kernel}_{self.kernel_scale}_{self.tau_max}_{self.concept_type}"
         if "cond" in self.test_type:
             state_name = f"{state_name}_{self.ckde_scale_method}_{self.ckde_scale}"
         return os.path.join(state_dir, f"{state_name}.parquet")
@@ -79,7 +77,7 @@ class TestingResults:
         config_dict = config.to_dict()
         for key, value in results_kw.items():
             _set(config_dict, key, value)
-        config = Config(config_dict).freeze()
+        config = Config(config_dict)
 
         results = TestingResults(config, test_type, concept_type)
         df = pd.read_parquet(results.state_path(workdir))
@@ -129,3 +127,38 @@ class TestingResults:
         if normalize_tau:
             tau /= self.tau_max
         return concepts, rejected, tau
+
+    def sort(
+        self,
+        class_name: str,
+        idx: Optional[int] = None,
+        cardinality: Optional[int] = None,
+        normalize_tau: bool = True,
+        fdr_control: bool = False,
+        with_importance: bool = False,
+    ):
+        concepts, rejected, tau = self.get(
+            class_name,
+            idx=idx,
+            cardinality=cardinality,
+            fdr_control=fdr_control,
+            normalize_tau=normalize_tau,
+        )
+
+        if with_importance:
+            important = rejected > self.significance_level
+
+            important_sorted_idx = np.argsort(tau[important])
+            unimportant_sorted_idx = np.argsort(tau[~important])
+            sorted_idx = np.concatenate([important_sorted_idx, unimportant_sorted_idx])
+        else:
+            sorted_idx = np.argsort(tau)
+
+        sorted_concepts = [concepts[idx] for idx in sorted_idx]
+        sorted_rejected = rejected[sorted_idx]
+        sorted_tau = tau[sorted_idx]
+        output = (sorted_idx, sorted_concepts, sorted_rejected, sorted_tau)
+        if with_importance:
+            sorted_important = important[sorted_idx]
+            output += (sorted_important,)
+        return output

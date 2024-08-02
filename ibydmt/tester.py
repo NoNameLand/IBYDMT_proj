@@ -57,13 +57,13 @@ def sweep(
     sweep_values = [_get(config_dict, key) for key in sweep_keys]
     sweep = list(product(*map(to_iterable, sweep_values)))
 
-    configs = []
+    configs: Iterable[Config] = []
     for _sweep in sweep:
         _config_dict = config_dict.copy()
         for key, value in zip(sweep_keys, _sweep):
             _set(_config_dict, key, value)
 
-        configs.append(Config(_config_dict).freeze())
+        configs.append(Config(_config_dict))
     return configs
 
 
@@ -125,7 +125,6 @@ def test_global(config: Config, concept_type: str, workdir: str = c.WORKDIR):
 
     dataset = get_dataset(config, workdir=workdir)
     predictions = ZeroShotClassifier.get_predictions(config, workdir=workdir)
-    return
 
     results = TestingResults(config, "global", concept_type)
 
@@ -169,6 +168,7 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
 
     dataset = get_dataset(config, workdir=workdir)
     predictions = ZeroShotClassifier.get_predictions(config, workdir=workdir)
+    return
 
     results = TestingResults(config, "global_cond", concept_type)
 
@@ -250,6 +250,7 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
                 concept_class_name=concept_class_name,
                 concept_image_idx=concept_image_idx,
             )
+            return
 
             z = concept_dataset.semantics[test_idx]
 

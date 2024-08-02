@@ -53,6 +53,7 @@ class DataConfig(ConfigDict):
 
         self.dataset: str = config_dict.get("dataset", None)
         self.backbone: str = config_dict.get("backbone", None)
+        self.bottleneck_type: str = config_dict.get("bottleneck_type", None)
         self.num_concepts: int = config_dict.get("num_concepts", None)
 
 
@@ -102,7 +103,7 @@ class TestingConfig(ConfigDict):
         self.kernel_scale: float = config_dict.get("kernel_scale", None)
         self.tau_max: int = config_dict.get("tau_max", None)
         self.r: int = config_dict.get("r", None)
-        self.cardinalities: Iterable[int] = [1, 2, 4, 8]
+        self.cardinalities: Iterable[int] = config_dict.get("cardinalities", None)
 
 
 class Config(ConfigDict):
@@ -118,8 +119,9 @@ class Config(ConfigDict):
         self.ckde = cKDEConfig(config_dict.get("ckde", None))
         self.testing = TestingConfig(config_dict.get("testing", None))
 
-    def freeze(self):
-        return FrozenConfigDict(self)
+    def backbone_name(self):
+        backbone = self.data.backbone.strip().lower()
+        return backbone.replace("/", "_").replace(":", "_")
 
 
 configs: Mapping[str, Config] = {}

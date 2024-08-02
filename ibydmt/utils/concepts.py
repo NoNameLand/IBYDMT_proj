@@ -46,22 +46,33 @@ def get_concepts(
     concept_name = get_concept_name(
         concept_class_name=concept_class_name, concept_image_idx=concept_image_idx
     )
-    concept_path = get_concept_path(
-        config,
-        workdir=workdir,
-        concept_class_name=concept_class_name,
-        concept_image_idx=concept_image_idx,
-    )
-    if not os.path.exists(concept_path):
-        train_concepts(
+    if config.data.dataset.lower() == "imagenette":
+        concept_path = get_concept_path(
             config,
             workdir=workdir,
             concept_class_name=concept_class_name,
             concept_image_idx=concept_image_idx,
         )
+        if not os.path.exists(concept_path):
+            train_concepts(
+                config,
+                workdir=workdir,
+                concept_class_name=concept_class_name,
+                concept_image_idx=concept_image_idx,
+            )
 
-    with open(concept_path, "r") as f:
-        concepts = f.read().splitlines()
+        with open(concept_path, "r") as f:
+            concepts = f.read().splitlines()
+    elif config.data.dataset.lower() == "cub":
+        concept_path = os.path.join(
+            workdir, "concepts", config.name.lower(), "good_attributes.txt"
+        )
+
+        concepts = []
+        with open(concept_path, "r") as f:
+            for line in f:
+                concept = " ".join(line.strip().split()[1:])
+                concepts.append(concept)
 
     return concept_name, concepts
 

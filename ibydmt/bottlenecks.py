@@ -2,8 +2,6 @@ import logging
 import os
 import pickle
 
-import clip
-import open_clip
 import torch
 
 from ibydmt.utils.concepts import get_concepts
@@ -14,7 +12,7 @@ from ibydmt.utils.multimodal import get_text_encoder
 logger = logging.getLogger(__name__)
 
 
-class ZeroShotCBM:
+class ZeroShotBottleneck:
     def __init__(
         self,
         config: Config,
@@ -33,11 +31,11 @@ class ZeroShotCBM:
         self.cbm = None
 
     def state_path(self, workdir=c.WORKDIR):
-        backbone = self.config.data.backbone.lower()
-        safe_backbone = backbone.replace("/", "_").replace(":", "_")
         state_dir = os.path.join(workdir, "weights", self.config.name.lower())
         os.makedirs(state_dir, exist_ok=True)
-        return os.path.join(state_dir, f"{safe_backbone}_cbm_{self.concept_name}.pkl")
+        return os.path.join(
+            state_dir, f"{self.config.backbone_name()}_cbm_{self.concept_name}.pkl"
+        )
 
     @staticmethod
     def load_or_train(
@@ -47,7 +45,7 @@ class ZeroShotCBM:
         concept_image_idx=None,
         device=c.DEVICE,
     ):
-        model = ZeroShotCBM(
+        model = ZeroShotBottleneck(
             config,
             workdir=workdir,
             concept_class_name=concept_class_name,
@@ -86,12 +84,54 @@ class ZeroShotCBM:
             f" {self.config.data.dataset.lower()} with backbone ="
             f" {self.config.data.backbone} and concept_name = {self.concept_name}"
         )
-        tokenizer, encode_text = get_text_encoder(self.config, device=device)
+        encode_text = get_text_encoder(self.config, device=device)
 
-        concepts_text = tokenizer(self.concepts).to(device)
-
-        cbm = encode_text(concepts_text).float()
-        cbm = cbm / torch.linalg.norm(cbm, dim=1, keepdim=True)
+        cbm = encode_text(self.concepts).float()
+        cbm /= torch.linalg.norm(cbm, dim=1, keepdim=True)
         cbm = cbm.cpu().numpy()
 
         self.cbm = cbm
+
+
+class CAVBottleneck:
+    def __init__(
+        self,
+        config: Config,
+        workdir=c.WORKDIR,
+        concept_class_name=None,
+        concept_image_idx=None,
+    ):
+        self.config = config
+
+        self.concept_name, self.concepts = get_concepts(
+            config,
+            workdir=workdir,
+            concept_class_name=concept_class_name,
+            concept_image_idx=concept_image_idx,
+        )
+
+        with open(self.state_path(workdir=workdir), "rb") as f:
+            attribute_idx, w, _ = pickle.load(f)
+            attribute_idx = attribute_idx.tolist()
+
+        good_attribute_path = os.path.join(
+            workdir, "concepts", config.name.lower(), "good_attributes.txt"
+        )
+        with open(good_attribute_path, "r") as f:
+            good_attribute = f.readlines()
+        good_attribute_idx = [int(line.split()[0]) for line in good_attribute]
+
+        self.w = w[[attribute_idx.index(_idx) for _idx in good_attribute_idx]]
+
+    def state_path(self, workdir=c.WORKDIR):
+        state_dir = os.path.join(workdir, "weights", self.config.name.lower())
+        os.makedirs(state_dir, exist_ok=True)
+        return os.path.join(
+            workdir,
+            "weights",
+            self.config.name.lower(),
+            f"{self.config.backbone_name()}_cav.pkl",
+        )
+
+    def __call__(self, h):
+        return h @ self.w.T

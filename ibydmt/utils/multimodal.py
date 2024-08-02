@@ -1,15 +1,16 @@
 import clip
 import open_clip
-from transformers import AlignModel, AlignProcessor, FlavaModel, FlavaProcessor
+from transformers import (
+    AlignModel,
+    AlignProcessor,
+    BlipForImageTextRetrieval,
+    BlipProcessor,
+    FlavaModel,
+    FlavaProcessor,
+)
 
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
-
-
-def get_safe_backbone(config: Config):
-    backbone = config.data.backbone.strip().lower()
-    safe_backbone = backbone.replace("/", "_").replace(":", "_")
-    return safe_backbone
 
 
 def get_clip_text_encoder(backbone, device=c.DEVICE):
@@ -66,6 +67,23 @@ def get_align_text_encoder(device=c.DEVICE):
     return encode_text
 
 
+def get_blip_text_encoder(device=c.DEVICE):
+    model = BlipForImageTextRetrieval.from_pretrained(
+        "Salesforce/blip-itm-base-coco"
+    ).to(device)
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-itm-base-coco")
+
+    def encode_text(text):
+        text_inputs = processor(
+            text=text, return_tensors="pt", padding="max_length", max_length=77
+        )
+        text_inputs = {k: v.to(device) for k, v in text_inputs.items()}
+        question_embeds = model.text_encoder(**text_inputs)[0]
+        return model.text_proj(question_embeds[:, 0, :])
+
+    return encode_text
+
+
 def get_clip_image_encoder(backbone, device=c.DEVICE):
     model, preprocess = clip.load(backbone, device=device)
 
@@ -114,6 +132,21 @@ def get_align_image_encoder(device=c.DEVICE):
     return encode_image
 
 
+def get_blip_image_encoder(device=c.DEVICE):
+    model = BlipForImageTextRetrieval.from_pretrained(
+        "Salesforce/blip-itm-base-coco"
+    ).to(device)
+    processor = BlipProcessor.from_pretrained("Salesforce/blip-itm-base-coco")
+
+    def encode_image(image):
+        image_inputs = processor(images=[image], return_tensors="pt")
+        image_inputs = {k: v.to(device) for k, v in image_inputs.items()}
+        image_embeds = model.vision_model(**image_inputs)[0]
+        return model.vision_proj(image_embeds[:, 0, :])
+
+    return encode_image
+
+
 def get_text_encoder(config: Config, device=c.DEVICE):
     backbone = config.data.backbone.split(":")
     if len(backbone) == 1:
@@ -128,6 +161,8 @@ def get_text_encoder(config: Config, device=c.DEVICE):
         encode_text = get_flava_text_encoder(device=device)
     elif library == "align":
         encode_text = get_align_text_encoder(device=device)
+    elif library == "blip":
+        encode_text = get_blip_text_encoder(device=device)
     else:
         raise NotImplementedError(f"Unknown library: {library}")
     return encode_text
@@ -147,6 +182,8 @@ def get_image_encoder(config: Config, device=c.DEVICE):
         encode_image = get_flava_image_encoder(device=device)
     elif library == "align":
         encode_image = get_align_image_encoder(device=device)
+    elif library == "blip":
+        encode_image = get_blip_image_encoder(device=device)
     else:
         raise NotImplementedError(f"Unknown library: {library}")
     return encode_image

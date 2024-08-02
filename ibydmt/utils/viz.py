@@ -101,7 +101,8 @@ def viz_results(
         sns.barplot(
             x=sorted_fdr_tau,
             y=sorted_concepts,
-            hue=sorted_important,
+            color=Colors.FDR_BARCOLOR,
+            # hue=sorted_important,
             # palette={False: f"{Colors.FDR_BARCOLOR}20", True: Colors.FDR_BARCOLOR},
             alpha=0.8,
             ax=ax,
@@ -130,7 +131,8 @@ def viz_results(
     sns.barplot(
         x=sorted_tau,
         y=sorted_concepts,
-        hue=sorted_important,
+        color=Colors.DEFAULT_BARCOLOR,
+        # hue=sorted_important,
         # palette={False: f"{barcolor}20", True: barcolor},
         # label="rejection time",
         ax=ax,
@@ -170,7 +172,7 @@ def viz_global(
     _, axes = plt.subplots(2, 5, figsize=(1.5 * 9, 16 / 2), gridspec_kw={"wspace": 0.7})
     for class_idx, class_name in enumerate(classes):
         ax = axes[class_idx // 5, class_idx % 5]
-        viz_results(results, class_name, ax, fdr_control=include_fdr_control)
+        viz_results(results, class_name, fdr_control=include_fdr_control, ax=ax)
 
     figure_name = (
         f"{concept_type}_{results.kernel}_{results.kernel_scale}_{results.tau_max}"

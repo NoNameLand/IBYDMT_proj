@@ -3,14 +3,14 @@ import os
 from ibydmt.utils.config import Config, register_config
 
 
-@register_config(name="imagenette")
-class ImagenetteConfig(Config):
+@register_config(name="cub")
+class CUBConfig(Config):
     def __init__(self):
         super().__init__()
         self.name = os.path.basename(__file__).replace(".py", "")
 
         data = self.data
-        data.dataset = "imagenette"
+        data.dataset = "cub"
         data.backbone = [
             "clip:RN50",
             "clip:ViT-B/32",
@@ -21,17 +21,8 @@ class ImagenetteConfig(Config):
             "align",
             "blip",
         ]
-        data.bottleneck_type = "zero_shot"
+        data.bottleneck_type = "cav"
         data.num_concepts = 20
-
-        splice = self.splice
-        splice.vocab = "mscoco"
-        splice.vocab_size = int(1e04)
-        splice.l1_penalty = 0.20
-
-        pcbm = self.pcbm
-        pcbm.alpha = 1e-05
-        pcbm.l1_ratio = 0.99
 
         ckde = self.ckde
         ckde.metric = "euclidean"

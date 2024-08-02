@@ -75,14 +75,15 @@ class Imagenette(VisionDataset):
         return image, label
 
 
-# @register_dataset(name="cub")
+@register_dataset(name="cub")
 class CUB(VisionDataset):
     def __init__(self, root, train=True, transform=None):
         super().__init__(root, transform=transform)
         self.train = train
 
         image_root = os.path.join(root, "CUB", "images")
-        _, wnid_to_idx = find_classes(image_root)
+        wnids, wnid_to_idx = find_classes(image_root)
+        self.classes = [wnid.split(".")[1].replace("_", " ") for wnid in wnids]
 
         with open(os.path.join(root, "CUB", "images.txt"), "r") as f:
             lines = f.readlines()
@@ -92,21 +93,22 @@ class CUB(VisionDataset):
         with open(os.path.join(root, "CUB", "train_test_split.txt"), "r") as f:
             lines = f.readlines()
             lines = [line.strip().split() for line in lines]
-            idx_to_split = {int(idx): int(split) for idx, split in lines}
+            idx_to_train = {int(idx): int(split) == 1 for idx, split in lines}
 
         def belongs_to_split(filename):
             if not filename.endswith(".jpg"):
                 return False
-
             filename = "/".join(filename.split("/")[-2:])
-            if train:
-                return idx_to_split[filename_to_idx[filename]] == 1
-            else:
-                return idx_to_split[filename_to_idx[filename]] == 0
+            is_train = idx_to_train[filename_to_idx[filename]]
+            return is_train == train
 
         self.samples = make_dataset(
             image_root, wnid_to_idx, is_valid_file=belongs_to_split
         )
+        self.image_idx = [
+            filename_to_idx["/".join(filename.split("/")[-2:])]
+            for filename, _ in self.samples
+        ]
 
     def __len__(self):
         return len(self.samples)

@@ -1,40 +1,32 @@
 import logging
 import os
 
-import clip
 import numpy as np
 import pandas as pd
-import torch
-from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
+from torch.utils.data import Dataset
 
+from ibydmt.bottlenecks import CAVBottleneck, ZeroShotBottleneck
 from ibydmt.utils.concepts import get_concepts
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
-from ibydmt.utils.data import get_dataset
-from ibydmt.utils.multimodal import get_image_encoder, get_safe_backbone
-from ibydmt.zeroshot_cbm import ZeroShotCBM
+from ibydmt.utils.data import get_embedded_dataset
 
 logger = logging.getLogger(__name__)
 
 
 def get_dataset_with_concepts(
     config: Config,
-    workdir=c.WORKDIR,
     train=True,
-    transform=None,
     concept_class_name=None,
     concept_image_idx=None,
-    return_image=False,
+    workdir=c.WORKDIR,
 ):
     return DatasetWithConcepts(
         config,
-        workdir=workdir,
         train=train,
-        transform=transform,
-        return_image=return_image,
         concept_class_name=concept_class_name,
         concept_image_idx=concept_image_idx,
+        workdir=workdir,
     )
 
 
@@ -42,19 +34,13 @@ class DatasetWithConcepts(Dataset):
     def __init__(
         self,
         config: Config,
-        workdir=c.WORKDIR,
         train=True,
-        transform=None,
         concept_class_name=None,
         concept_image_idx=None,
-        return_image=False,
+        workdir=c.WORKDIR,
     ):
         super().__init__()
-        self.dataset = dataset = get_dataset(
-            config, workdir=workdir, train=train, transform=transform
-        )
-        self.root = os.path.join(workdir, "concept_data")
-        self.train = dataset.train
+        dataset = get_embedded_dataset(config, train=train, workdir=workdir)
         self.classes = dataset.classes
         self.concept_name, self.concepts = get_concepts(
             config,
@@ -62,85 +48,61 @@ class DatasetWithConcepts(Dataset):
             concept_class_name=concept_class_name,
             concept_image_idx=concept_image_idx,
         )
-        self.return_image = return_image
 
         op = "train" if train else "test"
-        backbone = get_safe_backbone(config)
-        data_dir = os.path.join(self.root, config.data.dataset.lower())
+        root = os.path.join(workdir, "concept_data")
+        data_dir = os.path.join(root, config.data.dataset.lower())
         data_path = os.path.join(
-            data_dir, f"{op}_{backbone}_{self.concept_name}.parquet"
+            data_dir, f"{op}_{config.backbone_name()}_{self.concept_name}.npy"
         )
         if not os.path.exists(data_path):
             os.makedirs(data_dir, exist_ok=True)
 
-            embedding, semantics, label = project_dataset_with_concepts(
+            semantics = project_dataset_with_concepts(
                 config,
-                workdir=workdir,
                 train=train,
                 concept_class_name=concept_class_name,
                 concept_image_idx=concept_image_idx,
-                device=c.DEVICE,
+                workdir=workdir,
             )
-            df = pd.DataFrame(
-                {"embedding": embedding, "semantics": semantics, "label": label}
-            )
-            df.to_parquet(data_path)
+            np.save(data_path, semantics)
 
-        self.data = pd.read_parquet(data_path)
-        self.embedding = np.vstack(self.data["embedding"].values)
-        self.semantics = np.vstack(self.data["semantics"].values)
-        self.label = np.stack(self.data["label"].values)
+        self.embedding = dataset.embedding
+        self.semantics = np.load(data_path)
+        self.label = dataset.label
 
     def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        raise NotImplementedError
+        return self.semantics.shape[0]
 
 
-@torch.no_grad()
 def project_dataset_with_concepts(
     config: Config,
-    workdir=c.WORKDIR,
     train=True,
     concept_class_name=None,
     concept_image_idx=None,
-    device=c.DEVICE,
+    workdir=c.WORKDIR,
 ):
     logger.info(
-        f"Encoding dataset {config.data.dataset.lower()} (train = {train}) with"
+        f"Projecting dataset {config.data.dataset.lower()} (train = {train}) with"
         f" backbone = {config.data.backbone},"
         f" concept_class_name = {concept_class_name},"
         f" concept_image_idx = {concept_image_idx}"
     )
-    concept_bottleneck = ZeroShotCBM.load_or_train(
-        config,
-        workdir=workdir,
-        concept_class_name=concept_class_name,
-        concept_image_idx=concept_image_idx,
-    )
-    preprocess, encode_image = get_image_encoder(config, device=device)
 
-    dataset = get_dataset(config, workdir=workdir, train=train, transform=preprocess)
-    dataloader = DataLoader(dataset, batch_size=128, shuffle=False)
-
-    embedding, semantics, label = [], [], []
-    for batch in tqdm(dataloader):
-        image, target = batch
-
-        image = image.to(device)
-
-        h = encode_image(image).float()
-        h = h / torch.linalg.norm(h, dim=1, keepdim=True)
-        h = h.cpu().numpy()
-        z = concept_bottleneck(h)
-
-        h = h.tolist()
-        z = z.tolist()
-        target = target.numpy().tolist()
-
-        embedding.extend(h)
-        semantics.extend(z)
-        label.extend(target)
-
-    return embedding, semantics, label
+    dataset = get_embedded_dataset(config, train=train, workdir=workdir)
+    if config.data.bottleneck_type == "zero_shot":
+        concept_bottleneck = ZeroShotBottleneck.load_or_train(
+            config,
+            workdir=workdir,
+            concept_class_name=concept_class_name,
+            concept_image_idx=concept_image_idx,
+        )
+    elif config.data.bottleneck_type == "cav":
+        concept_bottleneck = CAVBottleneck(
+            config,
+            workdir=workdir,
+            concept_class_name=concept_class_name,
+            concept_image_idx=concept_image_idx,
+        )
+    semantics = concept_bottleneck(dataset.embedding)
+    return semantics
