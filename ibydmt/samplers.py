@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Optional
 
 import numpy as np
@@ -6,6 +7,29 @@ from scipy.stats import gaussian_kde
 
 from ibydmt.utils.concept_data import get_dataset_with_concepts
 from ibydmt.utils.config import Config
+
+rng = np.random.default_rng()
+
+
+class SamplerType(Enum):
+    CKDE = "ckde"
+    ATTRIBUTE = "attribute"
+
+
+def get_sampler(
+    config: Config,
+    concept_class_name: Optional[str] = None,
+    concept_image_idx: Optional[int] = None,
+):
+    if config.data.sampler_type == SamplerType.CKDE.value:
+        sampler = cKDE(config, concept_class_name, concept_image_idx)
+    elif config.data.sampler_type == SamplerType.ATTRIBUTE.value:
+        sampler = AttributeSampler(config, concept_class_name, concept_image_idx)
+    else:
+        raise NotImplementedError(
+            f"Sampler type {config.data.sampler_type} not implemented"
+        )
+    return sampler
 
 
 class cKDE:
@@ -86,3 +110,36 @@ class cKDE:
         sample_z = self.sample_concept(z, cond_idx, m=m)
         nn_idx = self.nearest_neighbor(sample_z)
         return self.embedding[nn_idx]
+
+
+class AttributeSampler:
+    def __init__(
+        self,
+        config: Config,
+        concept_class_name: Optional[str] = None,
+        concept_image_idx: Optional[int] = None,
+    ):
+        dataset = get_dataset_with_concepts(
+            config,
+            train=True,
+            concept_class_name=concept_class_name,
+            concept_image_idx=concept_image_idx,
+        )
+        semantics = dataset.semantics
+        embedding = dataset.embedding
+
+        complete_mask = np.sum(semantics < 0, axis=1) == 0
+        self.semantics = semantics[complete_mask]
+        self.embedding = embedding[complete_mask]
+
+    def sample_concept(self, z, cond_idx, m=1):
+        raise NotImplementedError
+
+    def sample_embedding(self, z, cond_idx, m=1):
+        Z_cond = self.semantics[:, cond_idx]
+
+        z_cond = z[cond_idx]
+        Z_cond_dist = cdist(z_cond.reshape(1, -1), Z_cond, "hamming").squeeze()
+
+        cond_mask = Z_cond_dist == 0
+        return rng.choice(self.embedding[cond_mask], size=m, replace=True)

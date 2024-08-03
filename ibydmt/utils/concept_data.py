@@ -5,11 +5,11 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
 
-from ibydmt.bottlenecks import CAVBottleneck, ZeroShotBottleneck
+from ibydmt.bottlenecks import AttributeBottleneck, ZeroShotBottleneck
 from ibydmt.utils.concepts import get_concepts
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
-from ibydmt.utils.data import get_embedded_dataset
+from ibydmt.utils.data import get_dataset, get_embedded_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class DatasetWithConcepts(Dataset):
             concept_image_idx=concept_image_idx,
         )
 
-        op = "train" if train else "test"
+        op = dataset.op
         root = os.path.join(workdir, "concept_data")
         data_dir = os.path.join(root, config.data.dataset.lower())
         data_path = os.path.join(
@@ -89,20 +89,34 @@ def project_dataset_with_concepts(
         f" concept_image_idx = {concept_image_idx}"
     )
 
-    dataset = get_embedded_dataset(config, train=train, workdir=workdir)
     if config.data.bottleneck_type == "zero_shot":
+        dataset = get_embedded_dataset(config, train=train, workdir=workdir)
+
         concept_bottleneck = ZeroShotBottleneck.load_or_train(
             config,
             workdir=workdir,
             concept_class_name=concept_class_name,
             concept_image_idx=concept_image_idx,
         )
-    elif config.data.bottleneck_type == "cav":
-        concept_bottleneck = CAVBottleneck(
+        semantics = concept_bottleneck(dataset.embedding)
+    # elif config.data.bottleneck_type == "cav":
+    #     dataset = get_embedded_dataset(config, train=train, workdir=workdir)
+
+    #     concept_bottleneck = CAVBottleneck(
+    #         config,
+    #         workdir=workdir,
+    #         concept_class_name=concept_class_name,
+    #         concept_image_idx=concept_image_idx,
+    #     )
+    #     semantics = concept_bottleneck(dataset.embedding)
+    elif config.data.bottleneck_type == "attribute":
+        dataset = get_dataset(config, train=train, workdir=workdir)
+
+        concept_bottleneck = AttributeBottleneck(
             config,
             workdir=workdir,
             concept_class_name=concept_class_name,
             concept_image_idx=concept_image_idx,
         )
-    semantics = concept_bottleneck(dataset.embedding)
+        semantics = concept_bottleneck(dataset)
     return semantics

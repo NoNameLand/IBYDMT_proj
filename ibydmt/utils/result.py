@@ -145,20 +145,15 @@ class TestingResults:
             normalize_tau=normalize_tau,
         )
 
-        if with_importance:
-            important = rejected > self.significance_level
-
-            important_sorted_idx = np.argsort(tau[important])
-            unimportant_sorted_idx = np.argsort(tau[~important])
-            sorted_idx = np.concatenate([important_sorted_idx, unimportant_sorted_idx])
-        else:
-            sorted_idx = np.argsort(tau)
-
+        sorted_idx = np.argsort(tau)
         sorted_concepts = [concepts[idx] for idx in sorted_idx]
         sorted_rejected = rejected[sorted_idx]
         sorted_tau = tau[sorted_idx]
+
         output = (sorted_idx, sorted_concepts, sorted_rejected, sorted_tau)
         if with_importance:
-            sorted_important = important[sorted_idx]
-            output += (sorted_important,)
+            importance = (rejected > self.significance_level).astype(int)
+            sorted_importance = importance[sorted_idx]
+
+            output += (sorted_importance,)
         return output

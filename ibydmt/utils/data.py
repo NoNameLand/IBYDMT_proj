@@ -39,13 +39,15 @@ class EmbeddedDataset(Dataset):
     def __init__(self, config: Config, train=True, workdir=c.WORKDIR):
         super().__init__()
         dataset = get_dataset(config, train=train, workdir=workdir)
+        self.op = dataset.op
         self.classes = dataset.classes
 
-        op = "train" if train else "test"
         root = os.path.join(workdir, "concept_data")
         data_dir = os.path.join(root, config.data.dataset.lower())
 
-        data_path = os.path.join(data_dir, f"{op}_{config.backbone_name()}.parquet")
+        data_path = os.path.join(
+            data_dir, f"{self.op}_{config.backbone_name()}.parquet"
+        )
         if not os.path.exists(data_path):
             os.makedirs(data_dir, exist_ok=True)
 

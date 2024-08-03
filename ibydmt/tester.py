@@ -10,7 +10,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from ibydmt.classifiers import ZeroShotClassifier
-from ibydmt.samplers import cKDE
+from ibydmt.samplers import get_sampler
 from ibydmt.testing.fdr import FDRPostProcessor
 from ibydmt.testing.procedure import SKIT, SequentialTester, cSKIT, xSKIT
 from ibydmt.utils.concept_data import get_dataset_with_concepts
@@ -168,7 +168,6 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
 
     dataset = get_dataset(config, workdir=workdir)
     predictions = ZeroShotClassifier.get_predictions(config, workdir=workdir)
-    return
 
     results = TestingResults(config, "global_cond", concept_type)
 
@@ -185,7 +184,7 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
         )
         concepts = concept_dataset.concepts
 
-        ckde = cKDE(config, concept_class_name=concept_class_name)
+        sampler = get_sampler(config, concept_class_name=concept_class_name)
 
         for _ in tqdm(range(config.testing.r)):
             testers = []
@@ -194,7 +193,7 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
                 Y = predictions[class_name].values[pi]
                 Z = concept_dataset.semantics[pi]
 
-                tester = cSKIT(config, Y, Z, concept_idx, ckde.sample_concept)
+                tester = cSKIT(config, Y, Z, concept_idx, sampler.sample_concept)
                 testers.append(tester)
 
             (rejected, tau) = run_tests(config, testers)
@@ -223,9 +222,9 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
         class_idx = classes.index(class_name)
 
         class_test = list(product(class_test_idx, cardinalities))
-        for test_idx, cardinality in class_test:
+        for idx, cardinality in class_test:
             logger.info(
-                f"Testing id = {test_idx} (class = {class_name}) with cardinality ="
+                f"Testing id = {idx} (class = {class_name}) with cardinality ="
                 f" {cardinality}"
             )
 
@@ -234,7 +233,7 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
             if concept_type == ConceptType.CLASS.value:
                 concept_class_name = class_name
             if concept_type == ConceptType.IMAGE.value:
-                concept_image_idx = test_idx
+                concept_image_idx = idx
 
             concept_dataset = get_dataset_with_concepts(
                 config,
@@ -245,14 +244,13 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
             )
             concepts = concept_dataset.concepts
 
-            ckde = cKDE(
+            sampler = get_sampler(
                 config,
                 concept_class_name=concept_class_name,
                 concept_image_idx=concept_image_idx,
             )
-            return
 
-            z = concept_dataset.semantics[test_idx]
+            z = concept_dataset.semantics[idx]
 
             for _ in tqdm(range(config.testing.r)):
                 testers = []
@@ -266,7 +264,7 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
                         z,
                         concept_idx,
                         subset_idx,
-                        ckde.sample_embedding,
+                        sampler.sample_embedding,
                         classifier,
                         class_idx=class_idx,
                         cond_p_kwargs=dict(m=config.testing.tau_max),
@@ -280,7 +278,7 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
                     concepts,
                     rejected,
                     tau,
-                    idx=test_idx,
+                    idx=idx,
                     cardinality=cardinality,
                 )
                 results.add(
@@ -289,7 +287,7 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
                     fdr_rejected,
                     fdr_tau,
                     fdr_control=True,
-                    idx=test_idx,
+                    idx=idx,
                     cardinality=cardinality,
                 )
 

@@ -52,8 +52,8 @@ class Imagenette(VisionDataset):
         super().__init__(root, transform=transform)
         self.train = train
 
-        self.split = "train" if train else "val"
-        self.image_root = os.path.join(root, "imagenette2", self.split)
+        self.op = "train" if train else "test"
+        self.image_root = os.path.join(root, "imagenette2", self.op)
 
         self.wnids, self.wnid_to_idx = find_classes(self.image_root)
         self.classes = [self.WNID_TO_CLASS[wnid][0] for wnid in self.wnids]
@@ -77,9 +77,9 @@ class Imagenette(VisionDataset):
 
 @register_dataset(name="cub")
 class CUB(VisionDataset):
-    def __init__(self, root, train=True, transform=None):
+    def __init__(self, root, train=None, transform=None):
         super().__init__(root, transform=transform)
-        self.train = train
+        self.op = "all"
 
         image_root = os.path.join(root, "CUB", "images")
         wnids, wnid_to_idx = find_classes(image_root)
@@ -90,21 +90,7 @@ class CUB(VisionDataset):
             lines = [line.strip().split() for line in lines]
             filename_to_idx = {filename: int(idx) for idx, filename in lines}
 
-        with open(os.path.join(root, "CUB", "train_test_split.txt"), "r") as f:
-            lines = f.readlines()
-            lines = [line.strip().split() for line in lines]
-            idx_to_train = {int(idx): int(split) == 1 for idx, split in lines}
-
-        def belongs_to_split(filename):
-            if not filename.endswith(".jpg"):
-                return False
-            filename = "/".join(filename.split("/")[-2:])
-            is_train = idx_to_train[filename_to_idx[filename]]
-            return is_train == train
-
-        self.samples = make_dataset(
-            image_root, wnid_to_idx, is_valid_file=belongs_to_split
-        )
+        self.samples = make_dataset(image_root, wnid_to_idx, extensions=".jpg")
         self.image_idx = [
             filename_to_idx["/".join(filename.split("/")[-2:])]
             for filename, _ in self.samples
@@ -116,6 +102,31 @@ class CUB(VisionDataset):
     def __getitem__(self, idx):
         path, label = self.samples[idx]
         image = Image.open(path).convert("RGB")
+
+        if self.transform is not None:
+            image = self.transform(image)
+
+        return image, label
+
+
+@register_dataset(name="awa2")
+class AwA2(VisionDataset):
+    def __init__(self, root, train=None, transform=None):
+        super().__init__(root, transform=transform)
+        self.op = "train" if train else "test"
+
+        image_root = os.path.join(root, "AwA2", "JPEGImages")
+        wnids, wnid_to_idx = find_classes(image_root)
+        self.classes = [" ".join(wnid.split("+")) for wnid in wnids]
+
+        self.samples = make_dataset(image_root, wnid_to_idx, extensions=".jpg")
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        path, label = self.samples[idx]
+        image = Image.open(path).convert("RBG")
 
         if self.transform is not None:
             image = self.transform(image)

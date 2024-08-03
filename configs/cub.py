@@ -21,13 +21,9 @@ class CUBConfig(Config):
             "align",
             "blip",
         ]
-        data.bottleneck_type = "cav"
-        data.num_concepts = 20
-
-        ckde = self.ckde
-        ckde.metric = "euclidean"
-        ckde.scale_method = "neff"
-        ckde.scale = 2000
+        data.bottleneck_type = "attribute"
+        data.sampler_type = "attribute"
+        data.num_concepts = 14
 
         testing = self.testing
         testing.significance_level = 0.05

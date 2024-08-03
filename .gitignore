@@ -162,6 +162,7 @@ cython_debug/
 data
 concepts
 concept_data
+figures
 results
 weights
 wandb

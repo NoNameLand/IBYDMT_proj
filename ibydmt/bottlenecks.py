@@ -2,6 +2,8 @@ import logging
 import os
 import pickle
 
+import numpy as np
+import pandas as pd
 import torch
 
 from ibydmt.utils.concepts import get_concepts
@@ -91,6 +93,50 @@ class ZeroShotBottleneck:
         cbm = cbm.cpu().numpy()
 
         self.cbm = cbm
+
+
+class AttributeBottleneck:
+    def __init__(
+        self,
+        config: Config,
+        workdir=c.WORKDIR,
+        concept_class_name=None,
+        concept_image_idx=None,
+    ):
+        self.config = config
+
+        self.concept_name, self.concepts = get_concepts(
+            config,
+            workdir=workdir,
+            concept_class_name=concept_class_name,
+            concept_image_idx=concept_image_idx,
+        )
+
+        confident_image_attribute_label_path = os.path.join(
+            workdir,
+            "concept_data",
+            config.name.lower(),
+            "confident_image_attribute_labels.parquet",
+        )
+        df = pd.read_parquet(confident_image_attribute_label_path)
+        concept_df = df[df["attribute_name"].isin(self.concepts)]
+        self.concept_df = concept_df
+
+    def __call__(self, dataset):
+        image_df = self.concept_df.groupby("image_idx")
+
+        semantics = -1 * np.ones(
+            (len(dataset.image_idx), len(self.concepts)), dtype=int
+        )
+        for group in image_df:
+            image_idx = group[0]
+            dataset_image_idx = dataset.image_idx.index(image_idx)
+
+            for _, row in group[1].iterrows():
+                concept_idx = self.concepts.index(row["attribute_name"])
+                semantics[dataset_image_idx, concept_idx] = int(row["attribute_label"])
+
+        return semantics
 
 
 class CAVBottleneck:
