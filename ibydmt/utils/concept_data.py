@@ -74,6 +74,9 @@ class DatasetWithConcepts(Dataset):
     def __len__(self):
         return self.semantics.shape[0]
 
+    def __getitem__(self, idx):
+        return self.semantics[idx], self.label[idx]
+
 
 def project_dataset_with_concepts(
     config: Config,

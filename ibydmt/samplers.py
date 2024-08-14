@@ -22,9 +22,17 @@ def get_sampler(
     concept_image_idx: Optional[int] = None,
 ):
     if config.data.sampler_type == SamplerType.CKDE.value:
-        sampler = cKDE(config, concept_class_name, concept_image_idx)
+        sampler = cKDE(
+            config,
+            concept_class_name=concept_class_name,
+            concept_image_idx=concept_image_idx,
+        )
     elif config.data.sampler_type == SamplerType.ATTRIBUTE.value:
-        sampler = AttributeSampler(config, concept_class_name, concept_image_idx)
+        sampler = AttributeSampler(
+            config,
+            concept_class_name=concept_class_name,
+            concept_image_idx=concept_image_idx,
+        )
     else:
         raise NotImplementedError(
             f"Sampler type {config.data.sampler_type} not implemented"
@@ -57,7 +65,7 @@ class cKDE:
         return np.quantile(Z_cond_dist, self.scale)
 
     def _neff_scale(self, Z_cond_dist):
-        scales = np.linspace(1e-02, 0.4, 100)[:, None]
+        scales = np.linspace(1e-02, 0.1, 20)[:, None]
 
         _Z_cond_dist = np.tile(Z_cond_dist, (len(scales), 1))
 

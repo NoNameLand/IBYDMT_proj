@@ -3,14 +3,14 @@ from enum import Enum
 from typing import Any, Iterable, Mapping, Optional
 
 import torch
-from ml_collections import ConfigDict, FrozenConfigDict
+from ml_collections import ConfigDict
 from numpy import ndarray
 
 Array = ndarray | torch.Tensor
 
 
-def register_config(name):
-    def register(cls):
+def register_config(name: str):
+    def register(cls: Config):
         if name in configs:
             raise ValueError(f"Config {name} is already registered")
         configs[name] = cls
@@ -18,7 +18,7 @@ def register_config(name):
     return register
 
 
-def get_config(name):
+def get_config(name: str):
     return configs[name]()
 
 
@@ -30,7 +30,7 @@ class TestType(Enum):
 
 class ConceptType(Enum):
     DATASET = "dataset"
-    CLASS = "concept"
+    CLASS = "class"
     IMAGE = "image"
 
 
@@ -38,7 +38,7 @@ class Constants:
     WORKDIR = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     )
-    DEVICE = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     OPENCLIP_WEIGHTS = {
         "ViT-B-32": "laion2b_s34b_b79k",
         "ViT-L-14": "laion2b_s32b_b82k",

@@ -75,8 +75,9 @@ class TestingResults:
                 _set(dict[keys[0]], ".".join(keys[1:]), value)
 
         config_dict = config.to_dict()
-        for key, value in results_kw.items():
-            _set(config_dict, key, value)
+        if results_kw is not None:
+            for key, value in results_kw.items():
+                _set(config_dict, key, value)
         config = Config(config_dict)
 
         results = TestingResults(config, test_type, concept_type)

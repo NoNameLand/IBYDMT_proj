@@ -14,10 +14,13 @@ from ibydmt.utils.data import get_dataset
 logger = logging.getLogger(__name__)
 rng = np.random.default_rng()
 
-# Uncomment these lines if you haven't downloaded the WordNet data
-# nltk.download("wordnet")
-# nltk.download("omw-1.4")
-lem = WordNetLemmatizer()
+try:
+    lem = WordNetLemmatizer()
+except:
+    print(
+        'Please download the WordNet data by running `nltk.download("wordnet");'
+        ' nltk.download("omw-1.4")`'
+    )
 
 
 def _lemmatize(concept):
@@ -97,12 +100,12 @@ def train_dataset_concepts(config: Config, workdir=c.WORKDIR, device=c.DEVICE):
 
 
 def train_class_concepts(
-    config: Config, concept_class_name, workdir=c.WORKDIR, device=c.DEVICE
+    config: Config, concept_class_name: str, workdir=c.WORKDIR, device=c.DEVICE
 ):
     dataset, loader, splicemodel = _preamble(config, workdir, True, device)
     classes = dataset.classes
     assert concept_class_name in classes, ValueError(
-        f"{concept_class_name} not in classes"
+        f"{concept_class_name} not in {classes}"
     )
     label = classes.index(concept_class_name)
     weights, l0_norm, cosine = splice.decompose_classes(
@@ -113,29 +116,14 @@ def train_class_concepts(
     return _select_concepts(config, weights[label], classes)
 
 
-def train_image_concepts(config: Config, idx, workdir=c.WORKDIR, device=c.DEVICE):
+def train_image_concepts(
+    config: Config, concept_image_idx: int, workdir=c.WORKDIR, device=c.DEVICE
+):
     dataset, _, splicemodel = _preamble(config, workdir, False, device)
-    image, label = dataset[idx]
-    extra_concepts = {
-        "tench": ["trumpet", "selling", "brass", "dispener"],
-        "English springer": ["fore", "cathedral", "trumpet", "fishing"],
-        "cassette player": ["cathedral", "band", "jazz", "airshow"],
-        "chainsaw": ["flew", "trumpet", "obsolete", "airshow"],
-        "church": ["trumpet", "fore", "fish", "fishing"],
-        "French horn": ["bass", "fish", "cathedral", "obsolete"],
-        "garbage truck": ["jazz", "fishing", "obsolete", "fore"],
-        "gas pump": ["fishing", "exterior", "putting", "jazz"],
-        "golf ball": ["fish", "instrument", "battered", "jazz"],
-        "parachute": ["band", "fishing", "instrument", "cathedral"],
-    }
+    image, label = dataset[concept_image_idx]
     weights, l0_norm, cosine = splice.decompose_image(
         image.unsqueeze(0), splicemodel=splicemodel, device=device
     )
     logger.info(f"Average SpLiCe Decomposition L0 Norm: {l0_norm:.0f}")
     logger.info(f"Average CLIP, SpLiCe Cosine Similarity: {cosine:.4f}")
-
-    image_concepts = _select_concepts(
-        config, weights.squeeze(), [dataset.classes[label]]
-    )
-    image_concepts = image_concepts[: len(image_concepts) // 2]
-    return image_concepts + extra_concepts[dataset.classes[label]]
+    return _select_concepts(config, weights.squeeze(), [dataset.classes[label]])

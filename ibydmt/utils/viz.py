@@ -4,17 +4,32 @@ from typing import Any, Iterable, Mapping, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from scipy.stats import gaussian_kde
 
 from ibydmt.classifiers import ZeroShotClassifier
 from ibydmt.samplers import get_sampler
-from ibydmt.tester import get_local_test_idx, sample_random_subset
+from ibydmt.tester import get_local_test_idx, get_test_classes, sample_random_subset
 from ibydmt.utils.concept_data import get_dataset_with_concepts
 from ibydmt.utils.concepts import get_concepts
-from ibydmt.utils.config import Config
+from ibydmt.utils.config import ConceptType, Config
 from ibydmt.utils.config import Constants as c
 from ibydmt.utils.data import get_dataset
+from ibydmt.utils.pcbm import PCBM
 from ibydmt.utils.result import TestingResults
+
+
+def cub_attribute_to_human_readable(attribute: str):
+    first, second = attribute.split("::")
+    part = " ".join(first.split("_")[1:-1])
+    desc = second.replace("_", " ")
+
+    if part in ["primary", "size"]:
+        return f"is {desc}"
+    if part == "bill" and "head" in desc:
+        return f"bill {desc}"
+    if part == "wing" and "wings" in desc:
+        return desc.replace("-", " ")
+    else:
+        return f"{desc} {part}"
 
 
 class Colors:
@@ -69,14 +84,21 @@ def viz_results(
             class_name, idx=idx, cardinality=cardinality
         )
     else:
-        if idx is not None:
-            _concepts, rejected, tau = results.get(
-                class_name, idx=idx, cardinality=cardinality
-            )
-            assert set(concepts) == set(_concepts)
+        _concepts, rejected, tau = results.get(
+            class_name, idx=idx, cardinality=cardinality
+        )
+        assert set(concepts) == set(_concepts)
+
+        if results.name == "imagenette":
             concepts = [f"(*) {c}" if c in concepts[-4:] else c for c in _concepts]
-        else:
-            raise NotImplementedError
+        elif results.name == "cub":
+            human_concepts = [cub_attribute_to_human_readable(c) for c in _concepts]
+            concepts = [
+                f"(*) {human}" if c in concepts[-7:] else human
+                for c, human in zip(_concepts, human_concepts)
+            ]
+        elif results.name == "awa2":
+            concepts = [f"(*) {c}" if c in concepts[-10:] else c for c in _concepts]
 
     if fdr_control:
         _, fdr_rejected, fdr_tau = results.get(
@@ -91,27 +113,27 @@ def viz_results(
             with_importance=show_importance,
             significance_level=results.significance_level,
         )
-        sorted_important = important[sorted_idx]
+        # sorted_important = important[sorted_idx]
 
-        ax.plot(
-            sorted_fdr_rejected,
-            sorted_concepts,
-            color=Colors.FDR_LINECOLOR,
-            marker="o",
-            linestyle="--",
-            zorder=2,
-            linewidth=1.5,
-        )
-        sns.barplot(
-            x=sorted_fdr_tau,
-            y=sorted_concepts,
-            color=Colors.FDR_BARCOLOR,
-            # hue=sorted_important,
-            # palette={False: f"{Colors.FDR_BARCOLOR}20", True: Colors.FDR_BARCOLOR},
-            alpha=0.8,
-            ax=ax,
-            zorder=0,
-        )
+        # ax.plot(
+        #     sorted_fdr_rejected,
+        #     sorted_concepts,
+        #     color=Colors.FDR_LINECOLOR,
+        #     marker="o",
+        #     linestyle="--",
+        #     zorder=2,
+        #     linewidth=1.5,
+        # )
+        # sns.barplot(
+        #     x=sorted_fdr_tau,
+        #     y=sorted_concepts,
+        #     color=Colors.FDR_BARCOLOR,
+        #     # hue=sorted_important,
+        #     # palette={False: f"{Colors.FDR_BARCOLOR}20", True: Colors.FDR_BARCOLOR},
+        #     alpha=0.8,
+        #     ax=ax,
+        #     zorder=0,
+        # )
     else:
         important = rejected > results.significance_level
 
@@ -123,22 +145,22 @@ def viz_results(
     sorted_important = important[sorted_idx]
 
     ax.plot(
-        sorted_rejected,
+        sorted_fdr_rejected,
         sorted_concepts,
-        color=linecolor,
+        color=Colors.DEFAULT_LINECOLOR,
         marker="o",
         linestyle="--",
-        # label="rejection rate",
+        label="rejection rate",
         zorder=3,
         linewidth=1.5,
     )
     sns.barplot(
-        x=sorted_tau,
+        x=sorted_fdr_tau,
         y=sorted_concepts,
         color=Colors.DEFAULT_BARCOLOR,
         # hue=sorted_important,
         # palette={False: f"{barcolor}20", True: barcolor},
-        # label="rejection time",
+        label="rejection time",
         ax=ax,
         zorder=1,
     )
@@ -170,13 +192,27 @@ def viz_global(
         config, "global", concept_type, workdir=workdir, results_kw=results_kw
     )
 
-    dataset = get_dataset(config)
-    classes = dataset.classes
+    test_classes = get_test_classes(config, workdir=workdir)
 
     _, axes = plt.subplots(2, 5, figsize=(1.5 * 9, 16 / 2), gridspec_kw={"wspace": 0.7})
-    for class_idx, class_name in enumerate(classes):
-        ax = axes[class_idx // 5, class_idx % 5]
-        viz_results(results, class_name, fdr_control=include_fdr_control, ax=ax)
+    for i, class_name in enumerate(test_classes):
+        ax = axes[i // 5, i % 5]
+
+        concept_class_name = None
+        if concept_type == ConceptType.CLASS.value:
+            concept_class_name = class_name
+
+        _, concepts = get_concepts(
+            config, concept_class_name=concept_class_name, workdir=workdir
+        )
+
+        viz_results(
+            results,
+            class_name,
+            concepts=concepts,
+            fdr_control=include_fdr_control,
+            ax=ax,
+        )
 
     figure_name = (
         f"{concept_type}_{results.kernel}_{results.kernel_scale}_{results.tau_max}"
@@ -189,6 +225,80 @@ def viz_global(
     plt.close()
 
 
+def viz_global_cond(
+    config: Config,
+    concept_type: str = "dataset",
+    workdir: str = c.WORKDIR,
+    results_kw: Optional[Mapping[str, Any]] = None,
+    include_fdr_control: bool = False,
+):
+    figure_dir = os.path.join(workdir, "figures", config.name.lower(), "global_cond")
+    os.makedirs(figure_dir, exist_ok=True)
+
+    results = TestingResults.load(
+        config, "global_cond", concept_type, workdir=workdir, results_kw=results_kw
+    )
+
+    test_classes = get_test_classes(config, workdir=workdir)
+
+    _, axes = plt.subplots(2, 5, figsize=(1.5 * 9, 16 / 2), gridspec_kw={"wspace": 0.7})
+    for i, class_name in enumerate(test_classes):
+        ax = axes[i // 5, i % 5]
+
+        concept_class_name = None
+        if concept_type == ConceptType.CLASS.value:
+            concept_class_name = class_name
+
+        _, concepts = get_concepts(
+            config, concept_class_name=concept_class_name, workdir=workdir
+        )
+
+        viz_results(
+            results,
+            class_name,
+            concepts=concepts,
+            fdr_control=include_fdr_control,
+            ax=ax,
+        )
+
+
+def viz_pcbm(config: Config, concept_type: str = "dataset", workdir: str = c.WORKDIR):
+    dataset = get_dataset(config, workdir=workdir)
+    test_classes = get_test_classes(config, workdir=workdir)
+
+    _, axes = plt.subplots(2, 5, figsize=(1.5 * 9, 16 / 2), gridspec_kw={"wspace": 0.7})
+    for i, class_name in enumerate(test_classes):
+        ax = axes[i // 5, i % 5]
+
+        class_idx = dataset.classes.index(class_name)
+
+        concept_class_name = None
+        if concept_type == ConceptType.CLASS.value:
+            concept_class_name = class_name
+
+        _, concepts = get_concepts(
+            config, workdir=workdir, concept_class_name=class_name
+        )
+        pcbm = PCBM.load_or_train(
+            config, workdir=workdir, concept_class_name=concept_class_name
+        )
+        weights = pcbm.weights()
+        class_weights = weights[class_idx]
+
+        sorted_idx = np.argsort(np.abs(class_weights))[::-1]
+        sorted_concepts = [pcbm.concepts[idx] for idx in sorted_idx]
+        sorted_concepts = [
+            f"(*) {c}" if c in concepts[-10:] else c for c in sorted_concepts
+        ]
+        sorted_weights = class_weights[sorted_idx]
+        sns.barplot(x=sorted_weights, y=sorted_concepts, ax=ax)
+        ax.set_yticks(sorted_concepts)
+        ax.set_title(class_name)
+
+    plt.show()
+    plt.close()
+
+
 def viz_local_cond(
     config: Config,
     concept_type: str = "image",
@@ -196,12 +306,14 @@ def viz_local_cond(
     results_kw: Optional[Mapping[str, Any]] = None,
     include_fdr_control: bool = False,
 ):
-    figure_dir = os.path.join(workdir, "figures", config.name.lower(), "local_cond")
-    os.makedirs(figure_dir, exist_ok=True)
-
     results = TestingResults.load(
         config, "local_cond", concept_type, workdir=workdir, results_kw=results_kw
     )
+
+    figure_dir = os.path.join(
+        workdir, "figures", config.name.lower(), "local_cond", results.backbone_name
+    )
+    os.makedirs(figure_dir, exist_ok=True)
 
     dataset = get_dataset(config, train=False, workdir=workdir)
     test_idx = get_local_test_idx(config, workdir=workdir)
@@ -235,13 +347,104 @@ def viz_local_cond(
                     ax=ax,
                     fdr_control=include_fdr_control,
                 )
-                ax.set_title(r"s = %d" % cardinality)
+                ax.set_title(f"{results.backbone_name}\ns = {cardinality}")
 
+            plt.savefig(
+                os.path.join(figure_dir, f"{class_name}_{idx}.pdf"), bbox_inches="tight"
+            )
+            plt.savefig(
+                os.path.join(figure_dir, f"{class_name}_{idx}.png"), bbox_inches="tight"
+            )
             plt.show()
             plt.close()
 
 
-def viz_local_dist(config: Config, workdir=c.WORKDIR, device=c.DEVICE):
+def viz_cond_pdf(
+    config: Config, concept_type: str = "image", workdir=c.WORKDIR, device=c.DEVICE
+):
+    m = int(1e03)
+
+    dataset = get_dataset(config, train=False, workdir=workdir)
+
+    test_idx = get_local_test_idx(config, workdir=workdir)
+    for class_name, class_test_idx in test_idx.items():
+        for idx in class_test_idx:
+            image, _ = dataset[idx]
+
+            _, ax = plt.subplots(figsize=(3, 3))
+            ax.imshow(image)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_title(class_name)
+            plt.show()
+
+            concept_class_name = None
+            concept_image_idx = None
+            if concept_type == ConceptType.CLASS.value:
+                concept_class_name = class_name
+            if concept_type == ConceptType.IMAGE.value:
+                concept_image_idx = idx
+
+            concept_dataset = get_dataset_with_concepts(
+                config,
+                train=False,
+                workdir=workdir,
+                concept_class_name=concept_class_name,
+                concept_image_idx=concept_image_idx,
+            )
+            concepts = concept_dataset.concepts
+            semantics = concept_dataset.semantics
+
+            z = semantics[idx]
+            test_concepts = concepts[:2] + concepts[-2:]
+
+            sampler = get_sampler(
+                config,
+                concept_class_name=concept_class_name,
+                concept_image_idx=concept_image_idx,
+            )
+
+            _, axes = plt.subplots(
+                1,
+                len(test_concepts),
+                figsize=(16 / 2, 9 / 4),
+                gridspec_kw={"wspace": 0.5},
+            )
+            for i, concept in enumerate(test_concepts):
+                concept_idx = concepts.index(concept)
+                cond_idx = list(set(range(len(z))) - set([concept_idx]))
+
+                marginal = semantics[:, concept_idx]
+                conditional = sampler.sample_concept(z, cond_idx, m=m)[:, concept_idx]
+
+                ax = axes[i]
+                sns.histplot(
+                    x=marginal,
+                    kde=True,
+                    stat="density",
+                    color="lightblue",
+                    label="marginal",
+                    ax=ax,
+                )
+                sns.histplot(
+                    x=conditional,
+                    kde=True,
+                    stat="density",
+                    color="lightcoral",
+                    label="conditional",
+                    ax=ax,
+                )
+                ax.set_xlabel(r"$Z_{\text{%s}}$" % concept)
+                ax.legend()
+
+        plt.show()
+        plt.close()
+        break
+
+
+def viz_local_dist(
+    config: Config, concept_type: str = "image", workdir=c.WORKDIR, device=c.DEVICE
+):
     m = int(1e03)
     cardinalities = config.testing.cardinalities
 
@@ -256,8 +459,8 @@ def viz_local_dist(config: Config, workdir=c.WORKDIR, device=c.DEVICE):
     for class_name, class_test_idx in test_idx.items():
         class_idx = classes.index(class_name)
 
-        for test_idx in class_test_idx:
-            image, _ = dataset[test_idx]
+        for idx in class_test_idx:
+            image, _ = dataset[idx]
 
             _, ax = plt.subplots(figsize=(3, 3))
             ax.imshow(image)
@@ -266,16 +469,31 @@ def viz_local_dist(config: Config, workdir=c.WORKDIR, device=c.DEVICE):
             ax.set_title(class_name)
             plt.show()
 
+            concept_class_name = None
+            concept_image_idx = None
+            if concept_type == ConceptType.CLASS.value:
+                concept_class_name = class_name
+            if concept_type == ConceptType.IMAGE.value:
+                concept_image_idx = idx
+
             concept_dataset = get_dataset_with_concepts(
-                config, train=False, workdir=workdir, concept_image_idx=test_idx
+                config,
+                train=False,
+                workdir=workdir,
+                concept_class_name=concept_class_name,
+                concept_image_idx=concept_image_idx,
             )
             concepts = concept_dataset.concepts
             semantics = concept_dataset.semantics
 
-            z = semantics[test_idx]
+            z = semantics[idx]
             test_concepts = concepts[:2] + concepts[-2:]
 
-            sampler = get_sampler(config, concept_image_idx=test_idx)
+            sampler = get_sampler(
+                config,
+                concept_class_name=concept_class_name,
+                concept_image_idx=concept_image_idx,
+            )
 
             _, axes = plt.subplots(
                 len(test_concepts),

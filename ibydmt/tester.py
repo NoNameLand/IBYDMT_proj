@@ -13,7 +13,7 @@ from ibydmt.classifiers import ZeroShotClassifier
 from ibydmt.samplers import get_sampler
 from ibydmt.testing.fdr import FDRPostProcessor
 from ibydmt.testing.procedure import SKIT, SequentialTester, cSKIT, xSKIT
-from ibydmt.utils.concept_data import get_dataset_with_concepts
+from ibydmt.utils.concept_data import get_dataset_with_concepts, get_embedded_dataset
 from ibydmt.utils.config import ConceptType, Config
 from ibydmt.utils.config import Constants as c
 from ibydmt.utils.config import TestType, get_config
@@ -67,16 +67,34 @@ def sweep(
     return configs
 
 
+def get_test_classes(config: Config, workdir: str = c.WORKDIR):
+    test_classes_path = os.path.join(
+        workdir, "results", config.name.lower(), "test_classes.txt"
+    )
+    if not os.path.exists(test_classes_path):
+        dataset = get_dataset(config, workdir=workdir)
+        classes = dataset.classes
+    else:
+        with open(test_classes_path, "r") as f:
+            classes = [line.strip() for line in f]
+    return classes
+
+
 def get_local_test_idx(config: Config, workdir: str = c.WORKDIR):
     results_dir = os.path.join(workdir, "results", config.name.lower(), "local_cond")
     os.makedirs(results_dir, exist_ok=True)
 
     test_idx_path = os.path.join(results_dir, "local_test_idx.json")
     if not os.path.exists(test_idx_path):
-        dataset = get_dataset_with_concepts(config, train=False)
+        dataset = get_embedded_dataset(config, train=False)
+        test_classes = get_test_classes(config, workdir=workdir)
+        test_classes_idx = [
+            dataset.classes.index(class_name) for class_name in test_classes
+        ]
+
         class_idx = {
             class_name: np.nonzero(dataset.label == class_idx)[0].tolist()
-            for class_idx, class_name in enumerate(dataset.classes)
+            for class_idx, class_name in zip(test_classes, test_classes_idx)
         }
 
         samples_per_class = config.testing.get("samples_per_class", 2)
@@ -123,13 +141,12 @@ def test_global(config: Config, concept_type: str, workdir: str = c.WORKDIR):
         f" {config.testing.tau_max}"
     )
 
-    dataset = get_dataset(config, workdir=workdir)
     predictions = ZeroShotClassifier.get_predictions(config, workdir=workdir)
 
     results = TestingResults(config, "global", concept_type)
 
-    classes = dataset.classes
-    for class_name in classes:
+    test_classes = get_test_classes(config, workdir=workdir)
+    for class_name in test_classes:
         logger.info(f"Testing class {class_name}")
 
         concept_class_name = None
@@ -166,13 +183,12 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
         f" tau_max = {config.testing.tau_max}, ckde_scale = {config.ckde.scale}"
     )
 
-    dataset = get_dataset(config, workdir=workdir)
     predictions = ZeroShotClassifier.get_predictions(config, workdir=workdir)
 
     results = TestingResults(config, "global_cond", concept_type)
 
-    classes = dataset.classes
-    for class_name in classes:
+    test_classes = get_test_classes(config, workdir=workdir)
+    for class_name in test_classes:
         logger.info(f"Testing class {class_name}")
 
         concept_class_name = None
@@ -196,8 +212,9 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
                 tester = cSKIT(config, Y, Z, concept_idx, sampler.sample_concept)
                 testers.append(tester)
 
-            (rejected, tau) = run_tests(config, testers)
-            results.add(rejected, tau, class_name, concepts)
+            (rejected, tau), (fdr_rejected, fdr_tau) = run_tests(config, testers)
+            results.add(class_name, concepts, rejected, tau)
+            results.add(class_name, concepts, fdr_rejected, fdr_tau, fdr_control=True)
 
     results.save(workdir)
 

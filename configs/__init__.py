@@ -1,1 +1,1 @@
-from configs import cub, imagenette
+from configs import awa2, cub, imagenette
