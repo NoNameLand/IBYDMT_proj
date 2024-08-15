@@ -39,10 +39,6 @@ class Constants:
         os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     )
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    OPENCLIP_WEIGHTS = {
-        "ViT-B-32": "laion2b_s34b_b79k",
-        "ViT-L-14": "laion2b_s32b_b82k",
-    }
 
 
 class DataConfig(ConfigDict):
