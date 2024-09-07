@@ -3,12 +3,12 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from scipy.stats import spearmanr
-
 from concept_lib import get_concepts
+from scipy.stats import spearmanr
+from test_utils import TestingResults
+
 from datasets import get_dataset
 from models.pcbm import PCBM
-from test_utils import TestingResults
 
 kernel_colors = {
     "linear": {"linecolor": "#1f78b4", "barcolor": "#a6cee3"},

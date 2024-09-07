@@ -1,25 +1,37 @@
+import logging
 import os
 import pickle
+from typing import Optional
 
 import numpy as np
-from concept_datasets import get_concept_dataset
-from concept_lib import get_concepts
+from sklearn import metrics
 from sklearn.linear_model import SGDClassifier
 from tqdm import tqdm
 
+from ibydmt.utils.concept_data import get_dataset_with_concepts
+from ibydmt.utils.concepts import get_concepts
+from ibydmt.utils.config import Config
+from ibydmt.utils.config import Constants as c
+
+logger = logging.getLogger(__name__)
+
 
 class PCBM:
-    def __init__(self, config, concept_class_name=None):
+    def __init__(
+        self,
+        config: Config,
+        workdir=c.WORKDIR,
+        concept_class_name: Optional[str] = None,
+    ):
         self.config = config
 
         self.concept_name, self.concepts = get_concepts(
-            config, concept_class_name=concept_class_name
+            config, workdir=workdir, concept_class_name=concept_class_name
         )
         self.concept_class_name = concept_class_name
 
-        pcbm_config = config.get("pcbm", {})
-        self.alpha = pcbm_config.get("alpha", 1e-05)
-        self.l1_ratio = pcbm_config.get("l1_ratio", 0.99)
+        self.alpha = config.pcbm.alpha
+        self.l1_ratio = config.pcbm.l1_ratio
         self.r = config.testing.r
 
         self.classifier_hist = []
@@ -35,15 +47,19 @@ class PCBM:
             raise NotImplementedError(f"Reduction method {reduction} not implemented")
         return weights
 
-    def state_path(self, workdir):
+    def state_path(self, workdir=c.WORKDIR):
         state_dir = os.path.join(workdir, "weights", self.config.name.lower())
         os.makedirs(state_dir, exist_ok=True)
-        return os.path.join(state_dir, f"pcbm_{self.concept_name}.pkl")
+        return os.path.join(
+            state_dir, f"{self.config.backbone_name()}_pcbm_{self.concept_name}.pkl"
+        )
 
     @staticmethod
-    def load_or_train(config, workdir, concept_class_name=None):
+    def load_or_train(
+        config, workdir=c.WORKDIR, concept_class_name: Optional[str] = None
+    ):
         model = PCBM(config, concept_class_name=concept_class_name)
-        state_path = model.state_path(workdir)
+        state_path = model.state_path(workdir=workdir)
 
         pcbm_exists = os.path.exists(state_path)
         if pcbm_exists:
@@ -55,32 +71,28 @@ class PCBM:
 
         if pcbm_exists:
             with open(state_path, "rb") as f:
-                _, classifier = pickle.load(f)
-            model.classifier_hist = classifier
+                _, classifier_hist = pickle.load(f)
+            model.classifier_hist = classifier_hist
         else:
             model.train()
             model.eval()
             model.save(workdir)
         return model
 
-    def save(self, workdir):
-        with open(self.state_path(workdir), "wb") as f:
+    def save(self, workdir=c.WORKDIR):
+        with open(self.state_path(workdir=workdir), "wb") as f:
             pickle.dump((self.concepts, self.classifier_hist), f)
 
-    def _class_accuracy(self, predictions, Y):
-        classes = np.unique(Y)
-        class_accuracy = []
-        for _class in classes:
-            idx = Y == _class
-            class_accuracy.append(np.mean((predictions[idx] == Y[idx]).astype(float)))
-        return class_accuracy
+    def class_accuracy(self, prediction, label):
+        confusion_matrix = metrics.confusion_matrix(label, prediction)
+        return confusion_matrix.diagonal() / confusion_matrix.sum(axis=1)
 
     def train(self):
-        dataset = get_concept_dataset(
+        dataset = get_dataset_with_concepts(
             self.config, train=True, concept_class_name=self.concept_class_name
         )
 
-        Z, Y = dataset.Z, dataset.Y
+        semantics, label = dataset.semantics, dataset.label
 
         accuracy_hist, class_accuracy_hist = [], []
         for _ in tqdm(range(self.r)):
@@ -93,11 +105,11 @@ class PCBM:
                 max_iter=int(1e04),
                 fit_intercept=False,
             )
-            classifier.fit(Z, Y)
+            classifier.fit(semantics, label)
 
-            predictions = classifier.predict(Z)
-            accuracy = np.mean((predictions == Y).astype(float))
-            class_accuracy = self._class_accuracy(predictions, Y)
+            prediction = classifier.predict(semantics)
+            accuracy = np.mean((prediction == label).astype(float))
+            class_accuracy = self.class_accuracy(prediction, label)
 
             accuracy_hist.append(accuracy)
             class_accuracy_hist.append(class_accuracy)
@@ -106,30 +118,30 @@ class PCBM:
         accuracy = np.array(accuracy_hist)
         class_accuracy = np.array(class_accuracy_hist)
 
-        print(
+        logger.info(
             f"PCBM training accuracy: {accuracy.mean():.2%} (std ="
             f" {accuracy.std():.2%})"
         )
         for class_idx, class_name in enumerate(dataset.classes):
             _class_accuracy = class_accuracy[:, class_idx]
-            print(
+            logger.info(
                 f"\t{class_name}: {_class_accuracy.mean():.2%} (std ="
                 f" {_class_accuracy.std():.2%})"
             )
 
     def eval(self):
-        dataset = get_concept_dataset(
+        dataset = get_dataset_with_concepts(
             self.config, train=False, concept_class_name=self.concept_class_name
         )
 
-        Z, Y = dataset.Z, dataset.Y
+        semantics, label = dataset.semantics, dataset.label
 
         accuracy_hist, class_accuracy_hist = [], []
         for classifier in self.classifier_hist:
-            predictions = classifier.predict(Z)
+            predictions = classifier.predict(semantics)
 
-            accuracy = np.mean((predictions == Y).astype(float))
-            class_accuracy = self._class_accuracy(predictions, Y)
+            accuracy = np.mean((predictions == label).astype(float))
+            class_accuracy = self.class_accuracy(predictions, label)
 
             accuracy_hist.append(accuracy)
             class_accuracy_hist.append(class_accuracy)
@@ -137,13 +149,13 @@ class PCBM:
         accuracy = np.array(accuracy_hist)
         class_accuracy = np.array(class_accuracy_hist)
 
-        print(
+        logger.info(
             f"PCBM validation accuracy: {accuracy.mean():.2%} (std ="
             f" {accuracy.std():.2%})"
         )
         for class_idx, class_name in enumerate(dataset.classes):
             _class_accuracy = class_accuracy[:, class_idx]
-            print(
+            logger.info(
                 f"\t{class_name}: {_class_accuracy.mean():.2%} (std ="
                 f" {_class_accuracy.std():.2%})"
             )

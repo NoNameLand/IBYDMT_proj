@@ -3,14 +3,14 @@ import os
 from ibydmt.utils.config import Config, register_config
 
 
-@register_config(name="imagenette")
-class ImagenetteConfig(Config):
+@register_config(name="cub")
+class CUBConfig(Config):
     def __init__(self):
         super().__init__()
         self.name = os.path.basename(__file__).replace(".py", "")
 
         data = self.data
-        data.dataset = "imagenette"
+        data.dataset = "cub"
         data.backbone = [
             "clip:RN50",
             "clip:ViT-B/32",
@@ -21,23 +21,13 @@ class ImagenetteConfig(Config):
             "align",
             "blip",
         ]
-        data.bottleneck_type = "zero_shot"
-        data.sampler_type = "ckde"
-        data.num_concepts = 20
-
-        splice = self.splice
-        splice.vocab = "mscoco"
-        splice.vocab_size = int(1e04)
-        splice.l1_penalty = 0.20
+        data.bottleneck_type = "attribute"
+        data.sampler_type = "attribute"
+        data.num_concepts = 14
 
         pcbm = self.pcbm
         pcbm.alpha = 1e-05
         pcbm.l1_ratio = 0.99
-
-        ckde = self.ckde
-        ckde.metric = "euclidean"
-        ckde.scale_method = "neff"
-        ckde.scale = 2000
 
         testing = self.testing
         testing.significance_level = 0.05
@@ -45,8 +35,8 @@ class ImagenetteConfig(Config):
         testing.bet = "tanh"
         testing.kernel = "rbf"
         testing.kernel_scale_method = "quantile"
-        testing.kernel_scale = 0.9
-        testing.tau_max = [800]
-        testing.images_per_class = 2
+        testing.kernel_scale = 0.5
+        testing.tau_max = 200
+        testing.images_per_class = 10
         testing.cardinalities = [1, 2, 4]
         testing.r = 100

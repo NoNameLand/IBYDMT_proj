@@ -1,1 +1,1 @@
-from ibydmt.test import SKIT, cSKIT, xSKIT
+from ibydmt.tester import ConceptTester

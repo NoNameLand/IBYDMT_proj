@@ -5,9 +5,9 @@ import clip
 import numpy as np
 import pandas as pd
 import torch
+from concept_datasets import get_concept_dataset
 from scipy.special import softmax
 
-from concept_datasets import get_concept_dataset
 from datasets import get_dataset
 
 
@@ -87,7 +87,8 @@ class CLIPClassifier:
 
     def predict(self, workdir):
         print(
-            f"Predicting on {self.config.data.dataset.lower()} dataset with CLIP classifier"
+            f"Predicting on {self.config.data.dataset.lower()} dataset with CLIP"
+            " classifier"
         )
 
         dataset = get_concept_dataset(self.config, train=False)

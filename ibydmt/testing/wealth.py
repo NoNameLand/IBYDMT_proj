@@ -1,36 +1,39 @@
-from abc import ABC, abstractmethod
-from typing import Dict
+from abc import abstractmethod
 
 import numpy as np
 
-from ibydmt.utils import _get_cls, _register_cls
+from ibydmt.utils.config import Config
+
+wealths = {}
 
 
-class Wealth(ABC):
-    def __init__(self, config):
-        self.significance_level = config.significance_level
-        self.rejected = False
+def register_wealth(name):
+    def register(cls):
+        if name in wealths:
+            raise ValueError(f"Wealth {name} is already registered")
+        wealths[name] = cls
+
+    return register
+
+
+def get_wealth(name):
+    return wealths[name]
+
+
+class Wealth:
+    def __init__(self):
+        self.w = 1.0
+        self.wealth = [self.w]
 
     @abstractmethod
     def update(self, payoff):
         pass
 
 
-_WEALTH: Dict[str, Wealth] = {}
-
-
-def register_wealth(name):
-    return _register_cls(name, dict=_WEALTH)
-
-
-def get_wealth(name):
-    return _get_cls(name, dict=_WEALTH)
-
-
 @register_wealth("mixture")
 class Mixture(Wealth):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config: Config):
+        super().__init__()
 
         self.grid_size = grid_size = config.grid_size
         self.wealth = np.ones((grid_size,))
@@ -43,14 +46,14 @@ class Mixture(Wealth):
 
 @register_wealth("ons")
 class ONS(Wealth):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config: Config):
+        super().__init__()
 
-        self.w = 1.0
         self.v = 0
         self.a = 1
 
-        self.min_v, self.max_v = config.get("min_v", 0), config.get("max_v", 1 / 2)
+        self.min_v = config.testing.get("min_v", 0)
+        self.max_v = config.testing.get("max_v", 1 / 2)
         self.wealth_flag = False
 
     def _update_v(self, payoff):
@@ -65,8 +68,7 @@ class ONS(Wealth):
 
         if w >= 0 and not self.wealth_flag:
             self.w = w
-            if self.w >= 1 / self.significance_level:
-                self.rejected = True
+            self.wealth.append(self.w)
             self._update_v(payoff)
         else:
             self.wealth_flag = True

@@ -160,3 +160,11 @@ cython_debug/
 #.idea/
 
 data
+concepts
+concept_data
+figures
+results
+weights
+wandb
+graveyard
+preprocess
