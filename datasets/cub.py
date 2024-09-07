@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import List, Mapping
 
 import numpy as np
 import pandas as pd
@@ -51,64 +52,101 @@ class CUB(VisionDataset):
 
         return image, label
 
+    def validate_class_idx_for_testing(
+        self, config: Config, class_idx: Mapping[str, List[int]], workdir=c.WORKDIR
+    ):
+        dataset_idx_to_image_idx = self.image_idx
+
+        attribute_df = get_confident_image_attribute_labels(config, workdir=workdir)
+
+        def validate_image_attribute_count(image_group):
+            n_positive = n_negative = config.data.num_concepts // 2
+
+            image_n_negative = sum(image_group == 0)
+            image_n_positive = sum(image_group == 1)
+            return image_n_negative >= n_negative and image_n_positive >= n_positive
+
+        attribute_df["valid"] = attribute_df.groupby("image_idx")[
+            "attribute_label"
+        ].transform(validate_image_attribute_count)
+        attribute_df = attribute_df[attribute_df["valid"]]
+        valid_image_idx = attribute_df["image_idx"].unique()
+
+        return {
+            class_name: list(
+                filter(
+                    lambda idx: dataset_idx_to_image_idx[idx] in valid_image_idx,
+                    _class_idx,
+                ),
+            )
+            for class_name, _class_idx in class_idx.items()
+        }
+
 
 def get_confident_image_attribute_labels(config: Config, workdir=c.WORKDIR):
-    logging.info("Retrieving confident image attribute labels")
-    dataset = get_dataset(config, train=False)
-    classes = dataset.classes
-
-    attribute_dir = os.path.join(workdir, "data", "CUB", "attributes")
-    attribute_path = os.path.join(attribute_dir, "attributes.txt")
-    image_attribute_labels_path = os.path.join(
-        attribute_dir, "image_attribute_labels.txt"
-    )
-
-    with open(attribute_path, "r") as f:
-        attribute_idx_to_name = {int(line.split()[0]): line.split()[1] for line in f}
-
-    image_idx = []
-    class_name = []
-    attribute_idx = []
-    attribute_name = []
-    attribute_label = []
-    with open(image_attribute_labels_path, "r") as f:
-        for line in tqdm(f):
-            chunks = line.strip().split()
-            # malformed line
-            if len(chunks) != 5:
-                continue
-
-            _image_idx, _attribute_idx, _attribute_label, _confidence, _ = chunks
-            if int(_confidence) >= 3:
-                _image_idx = int(_image_idx)
-                _attribute_idx = int(_attribute_idx)
-                _attribute_name = attribute_idx_to_name[_attribute_idx]
-                _attribute_label = int(_attribute_label)
-
-                _dataset_image_idx = dataset.image_idx.index(_image_idx)
-                _, _label = dataset.samples[_dataset_image_idx]
-                _class_name = classes[_label]
-
-                image_idx.append(_image_idx)
-                class_name.append(_class_name)
-                attribute_idx.append(_attribute_idx)
-                attribute_name.append(_attribute_name)
-                attribute_label.append(_attribute_label)
-
-    df = pd.DataFrame(
-        {
-            "image_idx": image_idx,
-            "class_name": class_name,
-            "attribute_idx": attribute_idx,
-            "attribute_name": attribute_name,
-            "attribute_label": attribute_label,
-        }
-    )
-
     confident_image_attribute_label_path = os.path.join(
         workdir, "concept_data", "cub", "confident_image_attribute_labels.parquet"
     )
-    df.to_parquet(confident_image_attribute_label_path)
+    if not os.path.exists(confident_image_attribute_label_path):
+        logging.info("Retrieving confident image attribute labels")
+        attribute_dir = os.path.join(workdir, "data", "CUB", "attributes")
+        attribute_path = os.path.join(attribute_dir, "attributes.txt")
+        image_attribute_labels_path = os.path.join(
+            attribute_dir, "image_attribute_labels.txt"
+        )
+
+        with open(attribute_path, "r") as f:
+            attribute_idx_to_name = {
+                int(line.split()[0]): line.split()[1] for line in f
+            }
+
+        dataset = get_dataset(config, workdir=workdir)
+        classes = dataset.classes
+        image_idx_to_dataset_idx = {
+            image_idx: idx for idx, image_idx in enumerate(dataset.image_idx)
+        }
+
+        image_idx = []
+        class_name = []
+        attribute_idx = []
+        attribute_name = []
+        attribute_label = []
+        with open(image_attribute_labels_path, "r") as f:
+            for line in tqdm(f):
+                chunks = line.strip().split()
+                # malformed line
+                if len(chunks) != 5:
+                    continue
+
+                _image_idx, _attribute_idx, _attribute_label, _confidence, _ = chunks
+                if int(_confidence) >= 3:
+                    _image_idx = int(_image_idx)
+
+                    _dataset_idx = image_idx_to_dataset_idx[_image_idx]
+                    _, _label = dataset.samples[_dataset_idx]
+                    _class_name = classes[_label]
+
+                    _attribute_idx = int(_attribute_idx)
+                    _attribute_name = attribute_idx_to_name[_attribute_idx]
+                    _attribute_label = int(_attribute_label)
+
+                    image_idx.append(_image_idx)
+                    class_name.append(_class_name)
+                    attribute_idx.append(_attribute_idx)
+                    attribute_name.append(_attribute_name)
+                    attribute_label.append(_attribute_label)
+
+        df = pd.DataFrame(
+            {
+                "image_idx": image_idx,
+                "class_name": class_name,
+                "attribute_idx": attribute_idx,
+                "attribute_name": attribute_name,
+                "attribute_label": attribute_label,
+            }
+        )
+        df.to_parquet(confident_image_attribute_label_path)
+    return pd.read_parquet(confident_image_attribute_label_path)
 
 
 @register_image_concept_trainer(name="cub")
@@ -118,15 +156,11 @@ def train_image_concepts(
     dataset = get_dataset(config, train=False)
     dataset_idx_to_image_idx = dataset.image_idx
 
-    confident_image_attribute_label_path = os.path.join(
-        workdir, "concept_data", "cub", "confident_image_attribute_labels.parquet"
-    )
-    if not os.path.exists(confident_image_attribute_label_path):
-        get_confident_image_attribute_labels(config, workdir=workdir)
-    df = pd.read_parquet(confident_image_attribute_label_path)
-
-    attribute_frequency = df.groupby("attribute_name")["attribute_label"].mean()
-    attribute_class_frequency = df.groupby(["class_name", "attribute_name"])[
+    attribute_df = get_confident_image_attribute_labels(config, workdir=workdir)
+    attribute_frequency = attribute_df.groupby("attribute_name")[
+        "attribute_label"
+    ].mean()
+    attribute_class_frequency = attribute_df.groupby(["class_name", "attribute_name"])[
         "attribute_label"
     ].mean()
 
@@ -136,7 +170,7 @@ def train_image_concepts(
 
     _attribute_class_frequency = attribute_class_frequency.loc[class_name]
 
-    image_df = df[df["image_idx"] == image_idx]
+    image_df = attribute_df[attribute_df["image_idx"] == image_idx]
     positive_attribute = image_df[image_df["attribute_label"] == 1][
         "attribute_name"
     ].values

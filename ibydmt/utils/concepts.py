@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 from typing import List, Mapping, Optional, Protocol
@@ -145,16 +146,14 @@ def train_concepts(
         concept_class_name=concept_class_name,
         concept_image_idx=concept_image_idx,
     )
-    if isinstance(concept_trainer, DatasetConceptTrainer):
-        concepts = concept_trainer(config, workdir=workdir, device=device)
-    if isinstance(concept_trainer, ClassConceptTrainer):
-        concepts = concept_trainer(
-            config, concept_class_name, workdir=workdir, device=device
-        )
-    if isinstance(concept_trainer, ImageConceptTrainer):
-        concepts = concept_trainer(
-            config, concept_image_idx, workdir=workdir, device=device
-        )
+
+    trainer_args = (config,)
+    if concept_class_name is not None:
+        trainer_args += (concept_class_name,)
+    if concept_image_idx is not None:
+        trainer_args += (concept_image_idx,)
+
+    concepts = concept_trainer(*trainer_args, workdir=workdir, device=device)
 
     concept_path = get_concept_path(
         config,

@@ -25,6 +25,10 @@ class CUBConfig(Config):
         data.sampler_type = "attribute"
         data.num_concepts = 14
 
+        pcbm = self.pcbm
+        pcbm.alpha = 1e-05
+        pcbm.l1_ratio = 0.99
+
         testing = self.testing
         testing.significance_level = 0.05
         testing.wealth = "ons"
@@ -33,5 +37,6 @@ class CUBConfig(Config):
         testing.kernel_scale_method = "quantile"
         testing.kernel_scale = 0.5
         testing.tau_max = 200
-        testing.cardinalities = [1, 2, 4, 8]
+        testing.images_per_class = 10
+        testing.cardinalities = [1, 2, 4]
         testing.r = 100

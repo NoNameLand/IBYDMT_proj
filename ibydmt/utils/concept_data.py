@@ -2,7 +2,6 @@ import logging
 import os
 
 import numpy as np
-import pandas as pd
 from torch.utils.data import Dataset
 
 from ibydmt.bottlenecks import AttributeBottleneck, ZeroShotBottleneck
@@ -102,17 +101,7 @@ def project_dataset_with_concepts(
             concept_image_idx=concept_image_idx,
         )
         semantics = concept_bottleneck(dataset.embedding)
-    # elif config.data.bottleneck_type == "cav":
-    #     dataset = get_embedded_dataset(config, train=train, workdir=workdir)
-
-    #     concept_bottleneck = CAVBottleneck(
-    #         config,
-    #         workdir=workdir,
-    #         concept_class_name=concept_class_name,
-    #         concept_image_idx=concept_image_idx,
-    #     )
-    #     semantics = concept_bottleneck(dataset.embedding)
-    elif config.data.bottleneck_type == "attribute":
+    if config.data.bottleneck_type == "attribute":
         dataset = get_dataset(config, train=train, workdir=workdir)
 
         concept_bottleneck = AttributeBottleneck(

@@ -1,10 +1,9 @@
 import numpy as np
 import torch
+from concept_datasets import get_concept_dataset
 from scipy.spatial.distance import cdist
 from scipy.stats import gaussian_kde
 from torchvision.transforms import Compose, Resize, ToTensor
-
-from concept_datasets import get_concept_dataset
 
 
 class cKDE:

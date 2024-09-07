@@ -2,11 +2,10 @@ import os
 import pickle
 
 import numpy as np
-from sklearn.linear_model import SGDClassifier
-from tqdm import tqdm
-
 from concept_datasets import get_concept_dataset
 from concept_lib import get_concepts
+from sklearn.linear_model import SGDClassifier
+from tqdm import tqdm
 
 
 class PCBM:

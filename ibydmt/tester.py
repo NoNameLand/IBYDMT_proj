@@ -13,7 +13,7 @@ from ibydmt.classifiers import ZeroShotClassifier
 from ibydmt.samplers import get_sampler
 from ibydmt.testing.fdr import FDRPostProcessor
 from ibydmt.testing.procedure import SKIT, SequentialTester, cSKIT, xSKIT
-from ibydmt.utils.concept_data import get_dataset_with_concepts, get_embedded_dataset
+from ibydmt.utils.concept_data import get_dataset_with_concepts
 from ibydmt.utils.config import ConceptType, Config
 from ibydmt.utils.config import Constants as c
 from ibydmt.utils.config import TestType, get_config
@@ -22,49 +22,6 @@ from ibydmt.utils.result import TestingResults
 
 logger = logging.getLogger(__name__)
 rng = np.random.default_rng()
-
-
-def sweep(
-    config: Config,
-    sweep_keys=[
-        "data.backbone",
-        "testing.kernel",
-        "testing.kernel_scale",
-        "testing.tau_max",
-    ],
-    ckde_sweep_keys=["ckde.scale"],
-    sweep_ckde=False,
-):
-    def _get(dict, key):
-        keys = key.split(".")
-        if len(keys) == 1:
-            return dict[keys[0]]
-        else:
-            return _get(dict[keys[0]], ".".join(keys[1:]))
-
-    def _set(dict, key, value):
-        keys = key.split(".")
-        if len(keys) == 1:
-            dict[keys[0]] = value
-        else:
-            _set(dict[keys[0]], ".".join(keys[1:]), value)
-
-    to_iterable = lambda v: v if isinstance(v, list) else [v]
-
-    config_dict = config.to_dict()
-    if sweep_ckde:
-        sweep_keys += ckde_sweep_keys
-    sweep_values = [_get(config_dict, key) for key in sweep_keys]
-    sweep = list(product(*map(to_iterable, sweep_values)))
-
-    configs: Iterable[Config] = []
-    for _sweep in sweep:
-        _config_dict = config_dict.copy()
-        for key, value in zip(sweep_keys, _sweep):
-            _set(_config_dict, key, value)
-
-        configs.append(Config(_config_dict))
-    return configs
 
 
 def get_test_classes(config: Config, workdir: str = c.WORKDIR):
@@ -86,21 +43,27 @@ def get_local_test_idx(config: Config, workdir: str = c.WORKDIR):
 
     test_idx_path = os.path.join(results_dir, "local_test_idx.json")
     if not os.path.exists(test_idx_path):
-        dataset = get_embedded_dataset(config, train=False)
+        dataset = get_dataset(config, train=False)
         test_classes = get_test_classes(config, workdir=workdir)
         test_classes_idx = [
             dataset.classes.index(class_name) for class_name in test_classes
         ]
 
+        label = np.array([l for _, l in dataset.samples])
         class_idx = {
-            class_name: np.nonzero(dataset.label == class_idx)[0].tolist()
-            for class_idx, class_name in zip(test_classes, test_classes_idx)
+            class_name: np.nonzero(label == class_idx)[0].tolist()
+            for class_idx, class_name in zip(test_classes_idx, test_classes)
         }
+        if getattr(dataset, "validate_class_idx_for_testing", None) is not None:
+            validate_class_idx_for_testing = dataset.validate_class_idx_for_testing
+            assert callable(validate_class_idx_for_testing)
+            class_idx = validate_class_idx_for_testing(
+                config, class_idx, workdir=workdir
+            )
 
-        samples_per_class = config.testing.get("samples_per_class", 2)
         test_idx = {
             class_name: rng.choice(
-                _class_idx, samples_per_class, replace=False
+                _class_idx, config.testing.images_per_class, replace=False
             ).tolist()
             for class_name, _class_idx in class_idx.items()
         }
@@ -178,9 +141,10 @@ def test_global(config: Config, concept_type: str, workdir: str = c.WORKDIR):
 def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR):
     logger.info(
         "Testing for global conditional semantic importance of dataset"
-        f" {config.data.dataset.lower()} with concept_type = {concept_type}, kernel ="
+        f" {config.data.dataset.lower()} with backbone = {config.data.backbone}, "
+        f" concept_type = {concept_type}, kernel ="
         f" {config.testing.kernel}, kernel_scale = {config.testing.kernel_scale},"
-        f" tau_max = {config.testing.tau_max}, ckde_scale = {config.ckde.scale}"
+        f" tau_max = {config.testing.tau_max}, ckde_scale = {config.ckde.scale}",
     )
 
     predictions = ZeroShotClassifier.get_predictions(config, workdir=workdir)
@@ -222,9 +186,10 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
 def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR):
     logger.info(
         "Testing for local conditional semantic importance of dataset"
-        f" {config.data.dataset.lower()} with concept_type = {concept_type}, kernel ="
-        f" {config.testing.kernel}, kernel_scale = {config.testing.kernel_scale},"
-        f" tau_max = {config.testing.tau_max}, ckde_scale = {config.ckde.scale}"
+        f" {config.data.dataset.lower()} with backbone = {config.data.backbone},"
+        f" concept_type = {concept_type}, kernel = {config.testing.kernel},"
+        f" kernel_scale = {config.testing.kernel_scale}, tau_max ="
+        f" {config.testing.tau_max}, ckde_scale = {config.ckde.scale}"
     )
 
     dataset = get_dataset(config, workdir=workdir)
@@ -326,5 +291,14 @@ class ConceptTester(object):
             test_fn = test_local_cond
             sweep_ckde = True
 
-        for config in sweep(self.config, sweep_ckde=sweep_ckde):
+        sweep_keys = [
+            "data.backbone",
+            "testing.kernel",
+            "testing.kernel_scale",
+            "testing.tau_max",
+        ]
+        if sweep_ckde:
+            sweep_keys += ["ckde.scale"]
+
+        for config in self.config.sweep(sweep_keys):
             test_fn(config, concept_type, workdir)

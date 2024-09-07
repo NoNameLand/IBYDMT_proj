@@ -7,10 +7,10 @@ import pandas as pd
 import torch
 from scipy.special import softmax
 
+from ibydmt.multimodal import get_text_encoder
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
 from ibydmt.utils.data import get_dataset, get_embedded_dataset
-from ibydmt.utils.multimodal import get_text_encoder
 
 logger = logging.getLogger(__name__)
 

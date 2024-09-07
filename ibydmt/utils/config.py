@@ -1,5 +1,7 @@
 import os
+from dataclasses import dataclass
 from enum import Enum
+from itertools import product
 from typing import Any, Iterable, Mapping, Optional
 
 import torch
@@ -7,19 +9,6 @@ from ml_collections import ConfigDict
 from numpy import ndarray
 
 Array = ndarray | torch.Tensor
-
-
-def register_config(name: str):
-    def register(cls: Config):
-        if name in configs:
-            raise ValueError(f"Config {name} is already registered")
-        configs[name] = cls
-
-    return register
-
-
-def get_config(name: str):
-    return configs[name]()
 
 
 class TestType(Enum):
@@ -34,6 +23,7 @@ class ConceptType(Enum):
     IMAGE = "image"
 
 
+@dataclass
 class Constants:
     WORKDIR = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -99,6 +89,7 @@ class TestingConfig(ConfigDict):
         self.kernel_scale_method: str = config_dict.get("kernel_scale_method", None)
         self.kernel_scale: float = config_dict.get("kernel_scale", None)
         self.tau_max: int = config_dict.get("tau_max", None)
+        self.images_per_class: int = config_dict.get("images_per_class", None)
         self.r: int = config_dict.get("r", None)
         self.cardinalities: Iterable[int] = config_dict.get("cardinalities", None)
 
@@ -119,6 +110,49 @@ class Config(ConfigDict):
     def backbone_name(self):
         backbone = self.data.backbone.strip().lower()
         return backbone.replace("/", "_").replace(":", "_")
+
+    def sweep(self, keys: Iterable[str]):
+        def _get(dict, key):
+            keys = key.split(".")
+            if len(keys) == 1:
+                return dict[keys[0]]
+            else:
+                return _get(dict[keys[0]], ".".join(keys[1:]))
+
+        def _set(dict, key, value):
+            keys = key.split(".")
+            if len(keys) == 1:
+                dict[keys[0]] = value
+            else:
+                _set(dict[keys[0]], ".".join(keys[1:]), value)
+
+        to_iterable = lambda v: v if isinstance(v, list) else [v]
+
+        config_dict = self.to_dict()
+        sweep_values = [_get(config_dict, key) for key in keys]
+        sweep = list(product(*map(to_iterable, sweep_values)))
+
+        configs: Iterable[Config] = []
+        for _sweep in sweep:
+            _config_dict = config_dict.copy()
+            for key, value in zip(keys, _sweep):
+                _set(_config_dict, key, value)
+
+            configs.append(Config(_config_dict))
+        return configs
+
+
+def register_config(name: str):
+    def register(cls: Config):
+        if name in configs:
+            raise ValueError(f"Config {name} is already registered")
+        configs[name] = cls
+
+    return register
+
+
+def get_config(name: str) -> Config:
+    return configs[name]()
 
 
 configs: Mapping[str, Config] = {}

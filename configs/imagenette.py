@@ -46,6 +46,7 @@ class ImagenetteConfig(Config):
         testing.kernel = "rbf"
         testing.kernel_scale_method = "quantile"
         testing.kernel_scale = 0.9
-        testing.tau_max = 800
-        testing.cardinalities = [1, 2, 4, 8]
+        testing.tau_max = [800]
+        testing.images_per_class = 2
+        testing.cardinalities = [1, 2, 4]
         testing.r = 100

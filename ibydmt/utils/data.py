@@ -8,9 +8,9 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from ibydmt.multimodal import get_image_encoder
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
-from ibydmt.utils.multimodal import get_image_encoder
 
 logger = logging.getLogger(__name__)
 

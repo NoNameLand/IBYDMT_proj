@@ -6,10 +6,10 @@ import numpy as np
 import pandas as pd
 import torch
 
+from ibydmt.multimodal import get_text_encoder
 from ibydmt.utils.concepts import get_concepts
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
-from ibydmt.utils.multimodal import get_text_encoder
 
 logger = logging.getLogger(__name__)
 
@@ -137,47 +137,3 @@ class AttributeBottleneck:
                 semantics[dataset_image_idx, concept_idx] = int(row["attribute_label"])
 
         return semantics
-
-
-class CAVBottleneck:
-    def __init__(
-        self,
-        config: Config,
-        workdir=c.WORKDIR,
-        concept_class_name=None,
-        concept_image_idx=None,
-    ):
-        self.config = config
-
-        self.concept_name, self.concepts = get_concepts(
-            config,
-            workdir=workdir,
-            concept_class_name=concept_class_name,
-            concept_image_idx=concept_image_idx,
-        )
-
-        with open(self.state_path(workdir=workdir), "rb") as f:
-            attribute_idx, w, _ = pickle.load(f)
-            attribute_idx = attribute_idx.tolist()
-
-        good_attribute_path = os.path.join(
-            workdir, "concepts", config.name.lower(), "good_attributes.txt"
-        )
-        with open(good_attribute_path, "r") as f:
-            good_attribute = f.readlines()
-        good_attribute_idx = [int(line.split()[0]) for line in good_attribute]
-
-        self.w = w[[attribute_idx.index(_idx) for _idx in good_attribute_idx]]
-
-    def state_path(self, workdir=c.WORKDIR):
-        state_dir = os.path.join(workdir, "weights", self.config.name.lower())
-        os.makedirs(state_dir, exist_ok=True)
-        return os.path.join(
-            workdir,
-            "weights",
-            self.config.name.lower(),
-            f"{self.config.backbone_name()}_cav.pkl",
-        )
-
-    def __call__(self, h):
-        return h @ self.w.T

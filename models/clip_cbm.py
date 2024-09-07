@@ -3,7 +3,6 @@ import pickle
 
 import clip
 import torch
-
 from concept_lib import get_concepts
 
 
