@@ -1,4 +1,5 @@
-from typing import Any, Iterable, Mapping, Optional
+import os
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,16 +28,16 @@ class Colors:
 def _viz_results(
     results: TestingResults,
     class_name: str,
-    concepts: Iterable[str],
     fdr_control: bool,
     ax: plt.Axes,
+    concept_postprocessor: Optional[Callable],
 ):
-    _, rejected, tau = results.get(class_name, fdr_control=fdr_control)
+    _, sorted_concepts, sorted_rejected, sorted_tau = results.sort(
+        class_name, fdr_control=fdr_control
+    )
 
-    sorted_idx = np.argsort(tau)
-    sorted_concepts = [concepts[idx] for idx in sorted_idx]
-    sorted_rejected = rejected[sorted_idx]
-    sorted_tau = tau[sorted_idx]
+    if concept_postprocessor is not None:
+        sorted_concepts = concept_postprocessor(class_name, sorted_concepts)
 
     ax.plot(
         sorted_rejected,
@@ -61,6 +62,7 @@ def _viz_results(
         results.significance_level,
         color="black",
         linestyle="--",
+        label="significance level",
         zorder=4,
         linewidth=1.5,
     )
@@ -71,27 +73,23 @@ def _viz_results(
 
 def viz_global_results(
     config: Config,
-    concept_type: str,
     results: TestingResults,
     fdr_control: bool = True,
-    workdir=c.WORKDIR,
+    concept_postprocessor: Optional[Callable] = None,
 ):
     test_classes = get_test_classes(config)
 
     m = 5
-    n = len(test_classes) // 2 + 1
-    _, axes = plt.subplots(n, m, figsize=(1.5 * 9, 16 / 2), gridspec_kw={"wspace": 0.7})
+    n = np.ceil(len(test_classes) / m).astype(int)
+    _, axes = plt.subplots(n, m, figsize=(1.5 * 9, 16 / 2), gridspec_kw={"wspace": 1.0})
     for i, class_name in enumerate(test_classes):
         ax = axes[i // m, i % m]
 
-        concept_class_name = None
-        if concept_type == ConceptType.CLASS.value:
-            concept_class_name = class_name
-
-        _, concepts = get_concepts(
-            config, concept_class_name=concept_class_name, workdir=workdir
-        )
-        _viz_results(results, class_name, concepts, fdr_control, ax)
+        _viz_results(results, class_name, fdr_control, ax, concept_postprocessor)
+        if i == len(test_classes) - 1:
+            ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+        else:
+            ax.legend().remove()
 
 
 def viz_results(
@@ -102,6 +100,9 @@ def viz_results(
     results_kw: Optional[Mapping[str, Any]] = None,
     workdir=c.WORKDIR,
 ):
+    figure_dir = os.path.join(workdir, "figures", config.name, test_type)
+    os.makedirs(figure_dir, exist_ok=True)
+
     sweep_backbone = True
     if results_kw.get("data.backbone", None) is not None:
         sweep_backbone = False
@@ -110,7 +111,11 @@ def viz_results(
         backbone_configs = config.sweep(["data.backbone"])
         results = [
             TestingResults.load(
-                backbone_config, test_type, concept_type, workdir=workdir
+                backbone_config,
+                test_type,
+                concept_type,
+                workdir=workdir,
+                results_kw=results_kw,
             )
             for backbone_config in backbone_configs
         ]
@@ -123,10 +128,47 @@ def viz_results(
 
     if test_type == TestType.GLOBAL.value:
         viz_fn = viz_global_results
-    # if test_type == TestType.GLOBAL_COND.value:
-    #     viz_fn = viz_global_cond_results
+    if test_type == TestType.GLOBAL_COND.value:
+        viz_fn = viz_global_results
     # if test_type == TestType.LOCAL_COND.value:
     #     viz_fn = viz_local_results
 
+    concept_postprocessor = None
+    if config.data.dataset.lower() == "awa2":
+
+        def awa2_concept_postprocessor(
+            class_name: str, sorted_concepts: Iterable[str]
+        ) -> Iterable[str]:
+            concept_class_name = None
+            if concept_type == ConceptType.CLASS.value:
+                concept_class_name = class_name
+
+            _, concepts = get_concepts(
+                config, concept_class_name=concept_class_name, workdir=workdir
+            )
+
+            return [
+                f"{c} (p)" if c in concepts[:10] else f"{c} (a)"
+                for c in sorted_concepts
+            ]
+
+        concept_postprocessor = awa2_concept_postprocessor
+
     for result in results:
-        viz_fn(config, concept_type, result, with_fdr=fdr_control, workdir=workdir)
+        viz_fn(
+            config,
+            result,
+            fdr_control=fdr_control,
+            concept_postprocessor=concept_postprocessor,
+        )
+
+        plt.savefig(
+            os.path.join(figure_dir, f"{result.backbone_name}_{concept_type}.pdf"),
+            bbox_inches="tight",
+        )
+        plt.savefig(
+            os.path.join(figure_dir, f"{result.backbone_name}_{concept_type}.png"),
+            bbox_inches="tight",
+        )
+        plt.show()
+        plt.close()
