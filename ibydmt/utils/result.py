@@ -104,7 +104,7 @@ class TestingResults:
         class_name: str,
         idx: Optional[int] = None,
         cardinality: Optional[int] = None,
-        fdr_control: bool = False,
+        fdr_control: bool = True,
         normalize_tau: bool = True,
     ):
         assert cardinality is not None if idx is not None else True, ValueError(
@@ -135,8 +135,7 @@ class TestingResults:
         idx: Optional[int] = None,
         cardinality: Optional[int] = None,
         normalize_tau: bool = True,
-        fdr_control: bool = False,
-        with_importance: bool = False,
+        fdr_control: bool = True,
     ):
         concepts, rejected, tau = self.get(
             class_name,
@@ -150,11 +149,4 @@ class TestingResults:
         sorted_concepts = [concepts[idx] for idx in sorted_idx]
         sorted_rejected = rejected[sorted_idx]
         sorted_tau = tau[sorted_idx]
-
-        output = (sorted_idx, sorted_concepts, sorted_rejected, sorted_tau)
-        if with_importance:
-            importance = (rejected > self.significance_level).astype(int)
-            sorted_importance = importance[sorted_idx]
-
-            output += (sorted_importance,)
-        return output
+        return sorted_idx, sorted_concepts, sorted_rejected, sorted_tau

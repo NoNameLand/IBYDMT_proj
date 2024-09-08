@@ -165,7 +165,7 @@ class BLIPModel(VisionLanguageModel):
             backbone = self.HF_MODEL
 
         self.model = BlipForImageTextRetrieval.from_pretrained(backbone).to(device)
-        self.processor = BlipProcessor.from_pretrained(backbone).to(device)
+        self.processor = BlipProcessor.from_pretrained(backbone)
 
         self.device = device
 

@@ -70,9 +70,7 @@ def rank_agreement(
             )
 
             for class_name in test_classes:
-                (_, sorted_concepts, _, _, _) = backbone_results.sort(
-                    class_name, fdr_control=True, with_importance=True
-                )
+                _, sorted_concepts, _, _ = backbone_results.sort(class_name)
                 results[backbone][class_name] = sorted_concepts
 
     rank_agreement = np.zeros(

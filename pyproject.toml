@@ -1,0 +1,12 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ibydmt"
+version = "0.0.1"
+authors = [
+  { name="Jacopo Teneggi", email="jtenegg1@jhu.edu" },
+]
+description = "A Package to Test for The Semantic Importance of Model Predictions"
+readme = "README.md"
