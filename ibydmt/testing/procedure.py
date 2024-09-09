@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from collections import deque
 from enum import Enum
-from typing import Optional, Protocol
+from typing import Iterable, Optional, Protocol
 
 import numpy as np
 from jaxtyping import Float
@@ -19,14 +19,14 @@ class StoppingCriteria(Enum):
 
 class ConditionalConceptSampler(Protocol):
     def __call__(
-        self, z: Float[Array, "N M"], cond_idx: list[int], **kwargs: dict
+        self, z: Float[Array, "N M"], cond_idx: Iterable[int], **kwargs: dict
     ) -> Float[Array, "N M"]:
         ...
 
 
 class ConditionalEmbeddingSampler(Protocol):
     def __call__(
-        z: Float[Array, "N M"], cond_idx: list[int], **kwargs: dict
+        z: Float[Array, "N M"], cond_idx: Iterable[int], **kwargs: dict
     ) -> Float[Array, "N D"]:
         ...
 
