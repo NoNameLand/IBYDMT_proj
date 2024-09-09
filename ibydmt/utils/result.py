@@ -27,7 +27,7 @@ class TestingResults:
         self.rejected = []
         self.tau = []
         self.fdr_control = []
-        self.idx = []
+        self.image_idx = []
         self.cardinality = []
         self.df: pd.DataFrame = None
 
@@ -56,7 +56,7 @@ class TestingResults:
             self.rejected.append(_rejected)
             self.tau.append(_tau)
             self.fdr_control.append(fdr_control)
-            self.idx.append(idx)
+            self.image_idx.append(idx)
             self.cardinality.append(cardinality)
 
     @staticmethod
@@ -93,7 +93,7 @@ class TestingResults:
                 "rejected": self.rejected,
                 "tau": self.tau,
                 "fdr_control": self.fdr_control,
-                "idx": self.idx,
+                "idx": self.image_idx,
                 "cardinality": self.cardinality,
             }
         )
@@ -102,18 +102,18 @@ class TestingResults:
     def get(
         self,
         class_name: str,
-        idx: Optional[int] = None,
+        image_idx: Optional[int] = None,
         cardinality: Optional[int] = None,
         fdr_control: bool = True,
         normalize_tau: bool = True,
     ):
-        assert cardinality is not None if idx is not None else True, ValueError(
+        assert cardinality is not None if image_idx is not None else True, ValueError(
             "Cardinality must be provided with idx"
         )
 
         df_filter = self.df["class_name"] == class_name
-        if idx is not None:
-            df_filter &= self.df["idx"] == idx
+        if image_idx is not None:
+            df_filter &= self.df["idx"] == image_idx
         if cardinality is not None:
             df_filter &= self.df["cardinality"] == cardinality
         df_filter &= self.df["fdr_control"] == fdr_control
@@ -132,14 +132,15 @@ class TestingResults:
     def sort(
         self,
         class_name: str,
-        idx: Optional[int] = None,
+        image_idx: Optional[int] = None,
         cardinality: Optional[int] = None,
         normalize_tau: bool = True,
         fdr_control: bool = True,
+        return_importance: bool = False,
     ):
         concepts, rejected, tau = self.get(
             class_name,
-            idx=idx,
+            image_idx=image_idx,
             cardinality=cardinality,
             fdr_control=fdr_control,
             normalize_tau=normalize_tau,
@@ -149,4 +150,14 @@ class TestingResults:
         sorted_concepts = [concepts[idx] for idx in sorted_idx]
         sorted_rejected = rejected[sorted_idx]
         sorted_tau = tau[sorted_idx]
+
+        if return_importance:
+            sorted_importance = sorted_rejected >= self.significance_level
+            return (
+                sorted_idx,
+                sorted_concepts,
+                sorted_rejected,
+                sorted_tau,
+                sorted_importance,
+            )
         return sorted_idx, sorted_concepts, sorted_rejected, sorted_tau

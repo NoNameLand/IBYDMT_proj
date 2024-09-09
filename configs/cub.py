@@ -21,8 +21,8 @@ class CUBConfig(Config):
             "align",
             "blip",
         ]
-        data.bottleneck_type = "attribute"
-        data.sampler_type = "attribute"
+        data.bottleneck = "attribute"
+        data.sampler = "attribute"
         data.num_concepts = 14
 
         pcbm = self.pcbm
