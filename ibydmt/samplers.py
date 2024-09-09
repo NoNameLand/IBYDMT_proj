@@ -21,22 +21,20 @@ def get_sampler(
     concept_class_name: Optional[str] = None,
     concept_image_idx: Optional[int] = None,
 ):
-    if config.data.sampler_type == SamplerType.CKDE.value:
+    if config.data.sampler == SamplerType.CKDE.value:
         sampler = cKDE(
             config,
             concept_class_name=concept_class_name,
             concept_image_idx=concept_image_idx,
         )
-    elif config.data.sampler_type == SamplerType.ATTRIBUTE.value:
+    elif config.data.sampler == SamplerType.ATTRIBUTE.value:
         sampler = AttributeSampler(
             config,
             concept_class_name=concept_class_name,
             concept_image_idx=concept_image_idx,
         )
     else:
-        raise NotImplementedError(
-            f"Sampler type {config.data.sampler_type} not implemented"
-        )
+        raise NotImplementedError(f"Sampler type {config.data.sampler} not implemented")
     return sampler
 
 

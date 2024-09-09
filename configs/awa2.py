@@ -21,8 +21,8 @@ class CUBConfig(Config):
             "align",
             "blip",
         ]
-        data.bottleneck_type = "zero_shot"
-        data.sampler_type = "ckde"
+        data.bottleneck = "zero_shot"
+        data.sampler = "ckde"
         data.num_concepts = 20
 
         ckde = self.ckde

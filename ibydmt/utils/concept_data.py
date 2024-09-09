@@ -4,7 +4,7 @@ import os
 import numpy as np
 from torch.utils.data import Dataset
 
-from ibydmt.bottlenecks import AttributeBottleneck, ZeroShotBottleneck
+from ibydmt.bottlenecks import get_bottleneck
 from ibydmt.utils.concepts import get_concepts
 from ibydmt.utils.config import Config
 from ibydmt.utils.config import Constants as c
@@ -37,6 +37,7 @@ class DatasetWithConcepts(Dataset):
         concept_class_name=None,
         concept_image_idx=None,
         workdir=c.WORKDIR,
+        device=c.DEVICE,
     ):
         super().__init__()
         dataset = get_embedded_dataset(config, train=train, workdir=workdir)
@@ -57,12 +58,14 @@ class DatasetWithConcepts(Dataset):
         if not os.path.exists(data_path):
             os.makedirs(data_dir, exist_ok=True)
 
-            semantics = project_dataset_with_concepts(
+            bottleneck = get_bottleneck(
                 config,
-                train=train,
                 concept_class_name=concept_class_name,
                 concept_image_idx=concept_image_idx,
                 workdir=workdir,
+            )
+            semantics = bottleneck.encode_dataset(
+                train=train, workdir=workdir, device=device
             )
             np.save(data_path, semantics)
 
@@ -75,40 +78,3 @@ class DatasetWithConcepts(Dataset):
 
     def __getitem__(self, idx):
         return self.semantics[idx], self.label[idx]
-
-
-def project_dataset_with_concepts(
-    config: Config,
-    train=True,
-    concept_class_name=None,
-    concept_image_idx=None,
-    workdir=c.WORKDIR,
-):
-    logger.info(
-        f"Projecting dataset {config.data.dataset.lower()} (train = {train}) with"
-        f" backbone = {config.data.backbone},"
-        f" concept_class_name = {concept_class_name},"
-        f" concept_image_idx = {concept_image_idx}"
-    )
-
-    if config.data.bottleneck_type == "zero_shot":
-        dataset = get_embedded_dataset(config, train=train, workdir=workdir)
-
-        concept_bottleneck = ZeroShotBottleneck.load_or_train(
-            config,
-            workdir=workdir,
-            concept_class_name=concept_class_name,
-            concept_image_idx=concept_image_idx,
-        )
-        semantics = concept_bottleneck(dataset.embedding)
-    if config.data.bottleneck_type == "attribute":
-        dataset = get_dataset(config, train=train, workdir=workdir)
-
-        concept_bottleneck = AttributeBottleneck(
-            config,
-            workdir=workdir,
-            concept_class_name=concept_class_name,
-            concept_image_idx=concept_image_idx,
-        )
-        semantics = concept_bottleneck(dataset)
-    return semantics

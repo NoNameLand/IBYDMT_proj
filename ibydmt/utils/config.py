@@ -39,8 +39,8 @@ class DataConfig(ConfigDict):
 
         self.dataset: str = config_dict.get("dataset", None)
         self.backbone: str = config_dict.get("backbone", None)
-        self.bottleneck_type: str = config_dict.get("bottleneck_type", None)
-        self.sampler_type: str = config_dict.get("sampler_type", None)
+        self.bottleneck: str = config_dict.get("bottleneck", None)
+        self.sampler: str = config_dict.get("sampler", None)
         self.num_concepts: int = config_dict.get("num_concepts", None)
 
 

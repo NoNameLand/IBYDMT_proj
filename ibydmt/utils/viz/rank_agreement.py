@@ -58,3 +58,4 @@ def viz_rank_agreement(
     ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
     ax.set_xticklabels(backbones, rotation=45, ha="left")
     ax.set_yticklabels(backbones, rotation=0)
+    return backbones, rank_agreement_results
