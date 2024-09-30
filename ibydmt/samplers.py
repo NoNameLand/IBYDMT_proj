@@ -156,7 +156,7 @@ class cKDE(Sampler):
 
 
 @register_sampler(name="attribute")
-class AttributeSampler:
+class AttributeSampler(Sampler):
     def __init__(
         self,
         config: Config,

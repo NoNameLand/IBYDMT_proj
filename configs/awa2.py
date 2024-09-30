@@ -28,7 +28,7 @@ class CUBConfig(Config):
         ckde = self.ckde
         ckde.metric = "euclidean"
         ckde.scale_method = "neff"
-        ckde.scale = [2000]
+        ckde.scale = 2000
 
         pcbm = self.pcbm
         pcbm.alpha = 1e-05
@@ -42,5 +42,5 @@ class CUBConfig(Config):
         testing.kernel_scale_method = "quantile"
         testing.kernel_scale = 0.9
         testing.tau_max = [800]
-        testing.cardinalities = [1, 2, 4, 8]
+        testing.cardinality = [1, 2, 4, 8]
         testing.r = 100

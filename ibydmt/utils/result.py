@@ -12,6 +12,7 @@ class TestingResults:
     def __init__(self, config: Config, test_type: str, concept_type: str):
         self.name = config.name.lower()
         self.backbone_name = config.backbone_name()
+        self.classifier = config.data.classifier
         self.significance_level = config.testing.significance_level
         self.kernel = config.testing.kernel
         self.kernel_scale = config.testing.kernel_scale
@@ -35,7 +36,7 @@ class TestingResults:
         state_dir = os.path.join(workdir, "results", self.name, self.test_type)
         os.makedirs(state_dir, exist_ok=True)
 
-        state_name = f"{self.backbone_name}_{self.kernel}_{self.kernel_scale}_{self.tau_max}_{self.concept_type}"
+        state_name = f"{self.backbone_name}_{self.classifier}_{self.kernel}_{self.kernel_scale}_{self.tau_max}_{self.concept_type}"
         if "cond" in self.test_type:
             state_name = f"{state_name}_{self.ckde_scale_method}_{self.ckde_scale}"
         return os.path.join(state_dir, f"{state_name}.parquet")
@@ -108,7 +109,7 @@ class TestingResults:
         normalize_tau: bool = True,
     ):
         assert cardinality is not None if image_idx is not None else True, ValueError(
-            "Cardinality must be provided with idx"
+            "Cardinality must be provided with image_idx"
         )
 
         df_filter = self.df["class_name"] == class_name
@@ -136,7 +137,6 @@ class TestingResults:
         cardinality: Optional[int] = None,
         normalize_tau: bool = True,
         fdr_control: bool = True,
-        return_importance: bool = False,
     ):
         concepts, rejected, tau = self.get(
             class_name,
@@ -150,14 +150,12 @@ class TestingResults:
         sorted_concepts = [concepts[idx] for idx in sorted_idx]
         sorted_rejected = rejected[sorted_idx]
         sorted_tau = tau[sorted_idx]
+        sorted_importance = sorted_rejected >= self.significance_level
 
-        if return_importance:
-            sorted_importance = sorted_rejected >= self.significance_level
-            return (
-                sorted_idx,
-                sorted_concepts,
-                sorted_rejected,
-                sorted_tau,
-                sorted_importance,
-            )
-        return sorted_idx, sorted_concepts, sorted_rejected, sorted_tau
+        return {
+            "sorted_idx": sorted_idx,
+            "sorted_concepts": sorted_concepts,
+            "sorted_rejected": sorted_rejected,
+            "sorted_tau": sorted_tau,
+            "sorted_importance": sorted_importance,
+        }

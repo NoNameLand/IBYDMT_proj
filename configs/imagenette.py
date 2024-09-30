@@ -21,7 +21,8 @@ class ImagenetteConfig(Config):
             "align",
             "blip",
         ]
-        data.bottleneck = "zero_shot"
+        data.bottleneck = "zeroshot"
+        data.classifier = "zeroshot"
         data.sampler = "ckde"
         data.num_concepts = 20
 
@@ -46,7 +47,7 @@ class ImagenetteConfig(Config):
         testing.kernel = "rbf"
         testing.kernel_scale_method = "quantile"
         testing.kernel_scale = 0.9
-        testing.tau_max = [800]
+        testing.tau_max = [100, 200, 400, 800, 1600]
         testing.images_per_class = 2
-        testing.cardinalities = [1, 2, 4]
+        testing.cardinality = [1, 2, 4]
         testing.r = 100

@@ -2,13 +2,13 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from itertools import product
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Iterable, Mapping, Optional, Union
 
 import torch
 from ml_collections import ConfigDict
 from numpy import ndarray
 
-Array = ndarray | torch.Tensor
+Array = Union[ndarray, torch.Tensor]
 
 
 class TestType(Enum):
@@ -40,6 +40,7 @@ class DataConfig(ConfigDict):
         self.dataset: str = config_dict.get("dataset", None)
         self.backbone: str = config_dict.get("backbone", None)
         self.bottleneck: str = config_dict.get("bottleneck", None)
+        self.classifier: str = config_dict.get("classifier", None)
         self.sampler: str = config_dict.get("sampler", None)
         self.num_concepts: int = config_dict.get("num_concepts", None)
 
@@ -91,7 +92,7 @@ class TestingConfig(ConfigDict):
         self.tau_max: int = config_dict.get("tau_max", None)
         self.images_per_class: int = config_dict.get("images_per_class", None)
         self.r: int = config_dict.get("r", None)
-        self.cardinalities: Iterable[int] = config_dict.get("cardinalities", None)
+        self.cardinality: Iterable[int] = config_dict.get("cardinality", None)
 
 
 class Config(ConfigDict):

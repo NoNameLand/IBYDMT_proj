@@ -109,13 +109,13 @@ class ZeroShotBottleneck(ConceptBottleneck):
         )
 
     @torch.no_grad()
-    def train(self):
+    def train(self, device=c.DEVICE):
         logger.info(
             "Training zero-shot CBM for dataset"
             f" {self.config.data.dataset.lower()} with backbone ="
             f" {self.config.data.backbone} and concept_name = {self.concept_name}"
         )
-        encode_text = get_text_encoder(self.config, device=self.device)
+        encode_text = get_text_encoder(self.config, device=device)
 
         cbm = encode_text(self.concepts).float()
         cbm /= torch.linalg.norm(cbm, dim=1, keepdim=True)

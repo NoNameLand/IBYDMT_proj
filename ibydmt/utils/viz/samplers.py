@@ -95,7 +95,7 @@ def viz_local_dist(
     config: Config, concept_type: str, workdir=c.WORKDIR, device=c.DEVICE
 ):
     m = int(1e03)
-    cardinalities = config.testing.cardinalities
+    cardinalities = config.testing.cardinality
 
     dataset = get_dataset(config, train=False, workdir=workdir)
     classes = dataset.classes

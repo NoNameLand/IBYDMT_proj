@@ -71,7 +71,7 @@ def _select_concepts(config: Config, weights, classes):
 
 
 def _preamble(config: Config, workdir, train, device):
-    _, preprocess = clip.load(config.data.backbone, device=device)
+    _, preprocess = clip.load("ViT-B/32", device=device)
     dataset = get_dataset(config, workdir=workdir, train=train, transform=preprocess)
     loader = DataLoader(dataset, batch_size=1024, shuffle=True)
 
@@ -79,7 +79,7 @@ def _preamble(config: Config, workdir, train, device):
         dataset,
         loader,
         splice.load(
-            f"clip:{config.data.backbone}",
+            "clip:ViT-B/32",
             config.splice.vocab,
             config.splice.vocab_size,
             l1_penalty=config.splice.l1_penalty,
