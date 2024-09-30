@@ -6,7 +6,7 @@ import pandas as pd
 import seaborn as sns
 
 from counting_lib import CLASS_NAME, CONCEPTS, DIGIT_NAMES, CountingDataset
-from notebooks.viz_results_utils import _viz_sorted_concepts, kernel_colors
+from graveyard.viz_results_utils import _viz_sorted_concepts, kernel_colors
 
 
 def viz_dist(dataset, predictions, figure_dir):

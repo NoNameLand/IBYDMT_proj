@@ -9,7 +9,7 @@ import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from ibydmt.classifiers import ZeroShotClassifier
+from ibydmt.classifiers import Classifier, get_predictions
 from ibydmt.samplers import get_sampler
 from ibydmt.testing.fdr import FDRPostProcessor
 from ibydmt.testing.procedure import SKIT, SequentialTester, cSKIT, xSKIT
@@ -104,7 +104,7 @@ def test_global(config: Config, concept_type: str, workdir: str = c.WORKDIR):
         f" {config.testing.tau_max}"
     )
 
-    predictions = ZeroShotClassifier.get_predictions(config, workdir=workdir)
+    predictions = get_predictions(config, workdir=workdir)
 
     results = TestingResults(config, "global", concept_type)
 
@@ -147,7 +147,7 @@ def test_global_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR
         f" tau_max = {config.testing.tau_max}, ckde_scale = {config.ckde.scale}",
     )
 
-    predictions = ZeroShotClassifier.get_predictions(config, workdir=workdir)
+    predictions = get_predictions(config, workdir=workdir)
 
     results = TestingResults(config, "global_cond", concept_type)
 
@@ -193,14 +193,17 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
     )
 
     dataset = get_dataset(config, workdir=workdir)
-    classifier = ZeroShotClassifier.load_or_train(config, workdir=workdir)
+    classifier = Classifier.from_pretrained(config, workdir=workdir)
 
     test_idx = get_local_test_idx(config, workdir=workdir)
-    cardinalities = config.testing.cardinalities
+    cardinalities = config.testing.cardinality
     results = TestingResults(config, "local_cond", concept_type)
 
     classes = dataset.classes
     for class_name, class_test_idx in test_idx.items():
+        if class_name not in ["Cardinal", "Blue Jay", "Frigatebird"]:
+            continue
+
         class_idx = classes.index(class_name)
 
         class_test = list(product(class_test_idx, cardinalities))
@@ -225,6 +228,8 @@ def test_local_cond(config: Config, concept_type: str, workdir: str = c.WORKDIR)
                 concept_image_idx=concept_image_idx,
             )
             concepts = concept_dataset.concepts
+            if len(concepts) > 20:
+                continue
 
             sampler = get_sampler(
                 config,
@@ -284,12 +289,14 @@ class ConceptTester(object):
         if test_type == TestType.GLOBAL.value:
             test_fn = test_global
             sweep_ckde = False
-        if test_type == TestType.GLOBAL_COND.value:
+        elif test_type == TestType.GLOBAL_COND.value:
             test_fn = test_global_cond
             sweep_ckde = True
-        if test_type == TestType.LOCAL_COND.value:
+        elif test_type == TestType.LOCAL_COND.value:
             test_fn = test_local_cond
             sweep_ckde = True
+        else:
+            raise ValueError(f"Invalid test_type: {test_type}")
 
         sweep_keys = [
             "data.backbone",

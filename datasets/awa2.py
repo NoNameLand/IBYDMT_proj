@@ -53,7 +53,7 @@ def train_class_concepts(
         classes = [line.strip().split()[1].replace("+", " ") for line in f]
 
     with open(predicate_path, "r") as f:
-        predicate = [line.strip().split()[1].replace("+", " ") for line in f]
+        predicates = [line.strip().split()[1].replace("+", " ") for line in f]
 
     with open(predicate_continuous_path, "r") as f:
         predicate_continuous = np.loadtxt(f)
@@ -62,13 +62,13 @@ def train_class_concepts(
     class_continuous = predicate_continuous[class_idx]
 
     class_continuous_sorted_idx = np.argsort(class_continuous)[::-1]
-    class_sorted_predicate = [predicate[idx] for idx in class_continuous_sorted_idx]
+    class_sorted_predicates = [predicates[idx] for idx in class_continuous_sorted_idx]
     (class_negative_idx,) = np.where(class_continuous == 0)
-    class_negative_predicate = [predicate[idx] for idx in class_negative_idx]
+    class_negative_predicates = [predicates[idx] for idx in class_negative_idx]
 
     n = config.data.num_concepts // 2
-    positive_predicate = class_sorted_predicate[:n]
-    negative_predicate = (
-        rng.choice(class_negative_predicate, n, replace=False).squeeze().tolist()
+    positive_predicates = class_sorted_predicates[:n]
+    negative_predicates = (
+        rng.choice(class_negative_predicates, n, replace=False).squeeze().tolist()
     )
-    return positive_predicate + negative_predicate
+    return positive_predicates + negative_predicates
